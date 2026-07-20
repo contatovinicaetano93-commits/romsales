@@ -51,16 +51,25 @@ export async function getProActions(professionalName: string, panel?: string): P
       byContact.set(row.contact_id, entry)
     }
 
-    const actions: ProAction[] = []
+    // Peso extra pra desempatar dentro do mesmo tipo (ex.: dois "overdue") pelo cliente
+    // mais atrasado de fato — sem isso o sort cai na ordem arbitrária do banco (por
+    // contact_id), e "top 6" vira sorteio em vez de "os que mais precisam de atenção".
+    const ranked: { action: ProAction; severity: number }[] = []
     for (const { name, services } of byContact.values()) {
       const enriched = enrichServices(services)
+      const severity = enriched.reduce((worst, s) => {
+        if (s.state !== 'overdue' && s.state !== 'due_soon') return worst
+        return Math.min(worst, s.days_until ?? 0)
+      }, Infinity)
       for (const rec of computeRecommendations(enriched)) {
-        actions.push({ ...rec, clientName: name })
+        ranked.push({ action: { ...rec, clientName: name }, severity })
       }
     }
 
-    actions.sort((a, b) => PRIORITY[a.type] - PRIORITY[b.type])
-    return actions.slice(0, MAX_ACTIONS)
+    ranked.sort(
+      (a, b) => PRIORITY[a.action.type] - PRIORITY[b.action.type] || a.severity - b.severity,
+    )
+    return ranked.slice(0, MAX_ACTIONS).map((r) => r.action)
   } catch (e) {
     // Best-effort igual ao resto da superfície pro — cai pro estado vazio, mas o erro
     // real (ex.: banco da unidade fora do ar) é reportado, não desaparece.
