@@ -1,5 +1,6 @@
 import { getSql } from '@/lib/db'
 import { todayIso } from '@/lib/salon/format'
+import { isValidRomPanelId, type RomPanelId } from '@/lib/brand'
 
 // Future mode: 'personal-avec' once personal tokens feed a dedicated read-model.
 export type ProDataPlaneMode = 'unit-sync'
@@ -34,8 +35,11 @@ export function getProDataPlaneMode(): ProDataPlaneMode {
     : 'unit-sync'
 }
 
-export async function getProClients(professionalName: string): Promise<ProClient[]> {
-  const sql = getSql()
+export async function getProClients(
+  professionalName: string,
+  panel?: string,
+): Promise<ProClient[]> {
+  const sql = getSql(isValidRomPanelId(panel) ? panel : undefined)
   const pro = professionalName.trim()
   const clients: ProClient[] = []
 
@@ -69,9 +73,11 @@ export async function getProClients(professionalName: string): Promise<ProClient
 export async function getProDaySummary(
   professionalName: string,
   goals?: { daily?: number | null; weekly?: number | null },
+  panel?: string,
 ): Promise<ProHojeSummary> {
   const day = todayIso()
-  const sql = getSql()
+  const validPanel: RomPanelId | undefined = isValidRomPanelId(panel) ? panel : undefined
+  const sql = getSql(validPanel)
   const pro = professionalName.trim()
   const dataSource = getProDataPlaneMode()
 
@@ -98,7 +104,7 @@ export async function getProDaySummary(
     // Unit-sync is best-effort for the pro surface; empty state explains missing data.
   }
 
-  const clients = await getProClients(pro)
+  const clients = await getProClients(pro, validPanel)
   const dailyGoal =
     goals?.daily != null && Number.isFinite(Number(goals.daily)) ? Number(goals.daily) : null
   const weeklyGoal =

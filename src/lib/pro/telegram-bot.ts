@@ -147,10 +147,11 @@ async function requireConnectedSummary(user: ProUserRow) {
         'Conta vinculada, mas a agenda ainda não está conectada. Abra Conectar e associe seu nome Avec.',
     }
   }
-  const summary = await getProDaySummary(user.professional_name, {
-    daily: user.daily_goal,
-    weekly: user.weekly_goal,
-  })
+  const summary = await getProDaySummary(
+    user.professional_name,
+    { daily: user.daily_goal, weekly: user.weekly_goal },
+    user.panel,
+  )
   return { ok: true as const, summary }
 }
 

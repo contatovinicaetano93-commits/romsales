@@ -11,6 +11,7 @@ export type { ProHojeSummary } from '@/lib/pro/data-plane'
 export async function buildProHoje(
   professionalName: string,
   goals?: { daily?: number | null; weekly?: number | null },
+  panel?: string,
 ): Promise<ProHojeSummary> {
-  return getProDaySummary(professionalName, goals)
+  return getProDaySummary(professionalName, goals, panel)
 }

@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
       return err('Conecte sua agenda Avec para ver o Hoje', 409)
     }
 
-    const summary = await getProDaySummary(user.professional_name, {
-      daily: user.daily_goal,
-      weekly: user.weekly_goal,
-    })
+    const summary = await getProDaySummary(
+      user.professional_name,
+      { daily: user.daily_goal, weekly: user.weekly_goal },
+      user.panel,
+    )
     return ok(summary)
   } catch (e) {
     return handleError(e)

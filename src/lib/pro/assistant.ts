@@ -25,10 +25,11 @@ export async function buildProAssistantContext(user: ProUserRow) {
   let goalPct: number | null = null
 
   if (connected && user.professional_name) {
-    const summary = await getProDaySummary(user.professional_name, {
-      daily: user.daily_goal,
-      weekly: user.weekly_goal,
-    })
+    const summary = await getProDaySummary(
+      user.professional_name,
+      { daily: user.daily_goal, weekly: user.weekly_goal },
+      user.panel,
+    )
     appointments = summary.appointments
     attended = summary.attended
     revenue = summary.revenue
