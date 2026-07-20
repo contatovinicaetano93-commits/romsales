@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.vercel
+*.tsbuildinfo
+.env
+.env.local
+.env*.local
+graphify-out
+npm-debug.log*
+.DS_Store
