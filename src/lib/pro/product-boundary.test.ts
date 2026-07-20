@@ -39,13 +39,20 @@ describe('Romsales pro-only product boundary', () => {
     expect(isAllowedInfrastructureApi('/api/lgpd/purge')).toBe(true)
   })
 
+  it('libera só o cron de estoque/relatório, não o resto da API de equipe', () => {
+    // Sync de estoque e relatório de diretoria também rodam no Romsales agora —
+    // só o cron, não o CRUD de estoque/painel (isso continua bloqueado abaixo).
+    expect(getInfrastructureApiAccess('/api/estoque/sync')).toBe('cron')
+    expect(getInfrastructureApiAccess('/api/director-report')).toBe('cron')
+    expect(isTeamApiPath('/api/estoque/produtos')).toBe(true)
+    expect(isTeamApiPath('/api/estoque/kpis')).toBe(true)
+  })
+
   it('nao publica webhooks/cron da equipe no pro-only', () => {
     expect(getInfrastructureApiAccess('/api/webhooks/telegram')).toBeNull()
     expect(getInfrastructureApiAccess('/api/webhooks/telegram-staff')).toBeNull()
     expect(getInfrastructureApiAccess('/api/webhooks/telegram-financeiro')).toBeNull()
     expect(getInfrastructureApiAccess('/api/webhooks/whatsapp')).toBeNull()
-    expect(getInfrastructureApiAccess('/api/estoque/sync')).toBeNull()
-    expect(getInfrastructureApiAccess('/api/director-report')).toBeNull()
     expect(getInfrastructureApiAccess('/api/reminders/financeiro')).toBeNull()
   })
 })
