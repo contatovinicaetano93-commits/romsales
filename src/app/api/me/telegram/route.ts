@@ -3,11 +3,20 @@ import { ok, err, handleError } from '@/lib/api-response'
 import { requireProSession } from '@/lib/pro/auth'
 import { getProBotUsername } from '@/lib/pro/telegram-bot'
 import { buildConnectorStatus, getProUserById, issueTelegramLinkCode } from '@/lib/pro/store'
+import { hitUserRateLimit } from '@/lib/pro/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'me-telegram',
+      limit: 20,
+      windowMs: 15 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas tentativas. Aguarde alguns minutos.', 429)
 
     const code = await issueTelegramLinkCode(auth.session.userId)
     const user = await getProUserById(auth.session.userId)

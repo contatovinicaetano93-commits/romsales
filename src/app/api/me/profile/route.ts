@@ -4,11 +4,20 @@ import { requireProSession } from '@/lib/pro/auth'
 import { buildConnectorStatus, getProUserById } from '@/lib/pro/store'
 import { getRomsalesProduct } from '@/lib/pro/product'
 import { isValidRomPanelId } from '@/lib/brand'
+import { hitUserRateLimit } from '@/lib/pro/rate-limit'
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'me-profile',
+      limit: 60,
+      windowMs: 5 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas requisições. Aguarde um pouco.', 429)
 
     const user = await getProUserById(auth.session.userId)
     if (!user) return err('Conta não encontrada', 404)

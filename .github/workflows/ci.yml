@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Mesmo typecheck que a Vercel roda no deploy — pega em CI, não em produção.
+      - run: npm run build
+        env:
+          # Só pra satisfazer checagens de env em build-time — nenhum destes é usado de verdade em CI.
+          ROMSALES_PRO_SESSION_SECRET: ci-build-only-not-a-real-secret
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci

@@ -75,3 +75,27 @@ export function clientKey(req: Request, prefix: string) {
   const ip = xf || req.headers.get('x-real-ip') || 'unknown'
   return `${prefix}:${ip}`
 }
+
+/**
+ * Chave por usuário (não por IP) — pras rotas autenticadas /api/pro e /api/me.
+ * IP não serve de chave aqui: várias pessoas atrás do mesmo NAT/proxy não podem
+ * dividir o mesmo limite, e o que queremos conter é uma sessão específica script
+ * ando/em loop, não o endereço de origem.
+ */
+export function userKey(userId: string, prefix: string) {
+  return `${prefix}:user:${userId}`
+}
+
+/** Atalho pras rotas /api/pro e /api/me — já autenticadas, só falta o teto de uso. */
+export async function hitUserRateLimit(input: {
+  userId: string
+  route: string
+  limit: number
+  windowMs: number
+}): Promise<{ ok: boolean; remaining: number }> {
+  return hitRateLimit({
+    key: userKey(input.userId, input.route),
+    limit: input.limit,
+    windowMs: input.windowMs,
+  })
+}

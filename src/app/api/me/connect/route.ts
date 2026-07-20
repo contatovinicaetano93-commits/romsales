@@ -13,11 +13,21 @@ import {
   getProUserById,
 } from '@/lib/pro/store'
 import { isValidRomPanelId, getRomPanelId } from '@/lib/brand'
+import { hitUserRateLimit } from '@/lib/pro/rate-limit'
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'me-connect-get',
+      limit: 60,
+      windowMs: 5 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas requisições. Aguarde um pouco.', 429)
+
     const user = await getProUserById(auth.session.userId)
     if (!user) return err('Conta não encontrada', 404)
     return ok({
@@ -39,6 +49,16 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    // Mais apertado que o GET: cada connect valida o token direto na Avec (chamada
+    // externa) — não dá pra deixar virar vetor de força bruta contra token alheio.
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'me-connect-post',
+      limit: 15,
+      windowMs: 15 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas tentativas. Aguarde alguns minutos.', 429)
 
     const body = await req.json().catch(() => null)
     const action = typeof body?.action === 'string' ? body.action : 'connect'

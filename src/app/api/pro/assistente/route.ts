@@ -10,11 +10,21 @@ import {
 } from '@/lib/pro/assistant'
 import { consumeAiQuota, getProUserById, readAiQuota, refundAiQuota } from '@/lib/pro/store'
 import { isAiConfigured } from '@/lib/ai/client'
+import { hitUserRateLimit } from '@/lib/pro/rate-limit'
 
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'pro-assistente-get',
+      limit: 60,
+      windowMs: 5 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas requisições. Aguarde um pouco.', 429)
+
     const user = await getProUserById(auth.session.userId)
     if (!user) return err('Conta não encontrada', 404)
 
@@ -40,6 +50,17 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireProSession(req)
     if (!auth.ok) return err(auth.message, auth.status)
+
+    // Defesa em profundidade além da cota diária de IA — barra script batendo rápido
+    // demais antes de sequer chegar na checagem de cota (que também custa DB).
+    const rl = await hitUserRateLimit({
+      userId: auth.session.userId,
+      route: 'pro-assistente-post',
+      limit: 30,
+      windowMs: 5 * 60 * 1000,
+    })
+    if (!rl.ok) return err('Muitas requisições. Aguarde um pouco.', 429)
+
     const user = await getProUserById(auth.session.userId)
     if (!user) return err('Conta não encontrada', 404)
 
