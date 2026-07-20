@@ -26,7 +26,11 @@ jobs:
       - run: npm run lint
         continue-on-error: true
 
-      - run: npm test
+      # src/__tests__ (smoke/e2e/integration) precisa de servidor local rodando em
+      # :3000 + segredos reais (DATABASE_URL, CRON_SECRET) — não é isolado, não roda
+      # em CI sem essa infra própria. src/lib/** é unit puro, sem dependência externa
+      # — é o que valida de verdade em CI por enquanto.
+      - run: npx vitest run src/lib
 
       # Mesmo typecheck que a Vercel roda no deploy — pega em CI, não em produção.
       - run: npm run build
