@@ -6,6 +6,7 @@
 import { getMockReport } from '@/lib/avec/fixtures'
 import { todayIso } from '@/lib/salon/format'
 import { isProduction } from '@/lib/env'
+import { getUnitEnvOverride } from '@/lib/unit-context'
 
 export const AVEC_DEFAULT_API_URL = 'https://api.avec.beauty'
 
@@ -33,7 +34,7 @@ export interface AvecReportParams {
 
 function getConfig() {
   const baseUrl = getAvecBaseUrl()
-  const token = process.env.AVEC_API_TOKEN
+  const token = getUnitEnvOverride()?.avecApiToken ?? process.env.AVEC_API_TOKEN
   if (!token) {
     throw new Error('AVEC_API_TOKEN é obrigatório para sync com Avec')
   }
@@ -41,11 +42,26 @@ function getConfig() {
 }
 
 export function getAvecBaseUrl() {
-  return (process.env.AVEC_API_URL ?? AVEC_DEFAULT_API_URL).replace(/\/$/, '')
+  const override = getUnitEnvOverride()?.avecBaseUrl
+  return (override ?? process.env.AVEC_API_URL ?? AVEC_DEFAULT_API_URL).replace(/\/$/, '')
 }
 
 export function isAvecConfigured() {
+  const override = getUnitEnvOverride()
+  if (override) return Boolean(override.avecApiToken) || isAvecMock()
   return Boolean(process.env.AVEC_API_TOKEN) || isAvecMock()
+}
+
+/** ID da unidade no Avec (quando configurado) — escopa o sync pra não misturar unidades. */
+export function getAvecUnitId(): string | null {
+  const override = getUnitEnvOverride()
+  if (override) return override.avecUnitId?.trim() || null
+  return process.env.AVEC_UNIT_ID?.trim() || null
+}
+
+/** Valor do param `site` nos relatórios Avec (vazio se não configurado). */
+export function avecSiteParam(): string {
+  return getAvecUnitId() ?? ''
 }
 
 export async function testAvecConnection() {

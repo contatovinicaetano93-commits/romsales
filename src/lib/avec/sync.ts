@@ -20,6 +20,8 @@ import {
   isAvecConfigured,
   isAvecMock,
   periodRange,
+  avecSiteParam,
+  getAvecUnitId,
 } from '@/lib/avec/client'
 import {
   normalizeClientRow,
@@ -40,7 +42,6 @@ import { syncP1Kpis } from '@/lib/avec/sync-p1'
 import { syncP2Kpis } from '@/lib/avec/sync-p2'
 import { syncP3Kpis } from '@/lib/avec/sync-p3'
 import type { RomPanelId } from '@/lib/brand'
-import { avecSiteParam, getAvecUnitId } from '@/lib/brand'
 
 export type AvecSyncMode = 'fast' | 'full'
 

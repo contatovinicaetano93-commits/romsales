@@ -1,6 +1,7 @@
 import { getSql } from '@/lib/db'
 import { todayIso } from '@/lib/salon/format'
 import { isValidRomPanelId, type RomPanelId } from '@/lib/brand'
+import { Observability } from '@/lib/observability'
 
 // Future mode: 'personal-avec' once personal tokens feed a dedicated read-model.
 export type ProDataPlaneMode = 'unit-sync'
@@ -58,8 +59,13 @@ export async function getProClients(
     for (const c of prefs) {
       clients.push({ name: c.name?.trim() || 'Cliente' })
     }
-  } catch {
-    // Unit-sync is best-effort for the pro surface; empty state explains missing data.
+  } catch (e) {
+    // Unit-sync é best-effort pra superfície pro — cai pro estado vazio, mas o erro
+    // real (ex.: banco da unidade fora do ar) não pode desaparecer silenciosamente.
+    Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
+      scope: 'pro.getProClients',
+      panel: panel ?? null,
+    })
   }
 
   return clients
@@ -100,8 +106,11 @@ export async function getProDaySummary(
       attended = Number(mine.attended) || 0
       appointments = Number(mine.appointments) || 0
     }
-  } catch {
-    // Unit-sync is best-effort for the pro surface; empty state explains missing data.
+  } catch (e) {
+    Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
+      scope: 'pro.getProDaySummary',
+      panel: validPanel ?? null,
+    })
   }
 
   const clients = await getProClients(pro, validPanel)

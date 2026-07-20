@@ -1,5 +1,6 @@
 import type { SalonDailyMetrics } from '@/lib/salon/metrics'
-import { getBrand, getAvecUnitId } from '@/lib/brand'
+import { getBrand } from '@/lib/brand'
+import { getAvecUnitId } from '@/lib/avec/client'
 
 function getUnitSummary() {
   const brand = getBrand()
