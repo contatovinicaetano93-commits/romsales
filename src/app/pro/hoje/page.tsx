@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Circle } from 'lucide-react'
 import { ProShell } from '../_components/ProShell'
+import { proFetch, ProSessionExpiredError } from '../_lib/pro-fetch'
 
 interface Summary {
   professionalName: string
@@ -26,37 +28,49 @@ interface ChecklistItem {
 }
 
 export default function ProHojePage() {
+  const router = useRouter()
   const [data, setData] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [connected, setConnected] = useState(false)
   const [checklist, setChecklist] = useState<ChecklistItem[]>([])
 
   useEffect(() => {
     void (async () => {
-      const [hojeRes, connectRes] = await Promise.all([
-        fetch('/api/pro/hoje', { credentials: 'include' }),
-        fetch('/api/me/connect', { credentials: 'include' }),
-      ])
+      try {
+        const [hojeRes, connectRes] = await Promise.all([
+          proFetch('/api/pro/hoje'),
+          proFetch('/api/me/connect'),
+        ])
 
-      const connectJson = await connectRes.json().catch(() => null)
-      if (connectRes.ok && connectJson?.data?.connectors?.checklist) {
-        setChecklist(connectJson.data.connectors.checklist)
-      }
+        const connectJson = await connectRes.json().catch(() => null)
+        if (connectRes.ok && connectJson?.data?.connectors?.checklist) {
+          setChecklist(connectJson.data.connectors.checklist)
+        }
 
-      if (hojeRes.status === 409) {
-        setConnected(false)
-        setData(null)
-        return
+        if (hojeRes.status === 409) {
+          setConnected(false)
+          setData(null)
+          return
+        }
+        const json = await hojeRes.json()
+        if (!hojeRes.ok) {
+          setError(json.error ?? 'Falha ao carregar')
+          return
+        }
+        setConnected(true)
+        setData(json.data)
+      } catch (e) {
+        if (e instanceof ProSessionExpiredError) {
+          router.push('/login?next=/pro/hoje')
+          return
+        }
+        setError(e instanceof Error ? e.message : 'Falha ao carregar')
+      } finally {
+        setLoading(false)
       }
-      const json = await hojeRes.json()
-      if (!hojeRes.ok) {
-        setError(json.error ?? 'Falha ao carregar')
-        return
-      }
-      setConnected(true)
-      setData(json.data)
     })()
-  }, [])
+  }, [router])
 
   const steps =
     checklist.length > 0
@@ -100,7 +114,12 @@ export default function ProHojePage() {
     >
       {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
 
-      {!connected ? (
+      {loading ? (
+        <section className="pro-card mb-4 animate-pulse p-5">
+          <div className="h-4 w-40 rounded bg-border" />
+          <div className="mt-3 h-3 w-64 rounded bg-border" />
+        </section>
+      ) : !connected ? (
         <section className="pro-card mb-4 p-5">
           <h2 className="text-lg font-semibold">Conecte sua agenda</h2>
           <p className="mt-1 text-sm text-muted">

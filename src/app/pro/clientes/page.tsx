@@ -2,32 +2,46 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
 import { ProShell } from '../_components/ProShell'
-
-type Filter = 'todos' | 'leads' | 'reativar'
+import { proFetch, ProSessionExpiredError } from '../_lib/pro-fetch'
 
 export default function ProClientesPage() {
+  const router = useRouter()
   const [clients, setClients] = useState<{ name: string }[]>([])
   const [connected, setConnected] = useState(true)
-  const [filter, setFilter] = useState<Filter>('todos')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch('/api/pro/clientes', { credentials: 'include' })
-      if (res.status === 409) {
-        setConnected(false)
-        setClients([])
-        return
-      }
-      const json = await res.json()
-      if (res.ok) {
-        setConnected(true)
-        setClients(json.data?.clients ?? [])
+      try {
+        const res = await proFetch('/api/pro/clientes')
+        if (res.status === 409) {
+          setConnected(false)
+          setClients([])
+          return
+        }
+        const json = await res.json()
+        if (res.ok) {
+          setConnected(true)
+          setClients(json.data?.clients ?? [])
+        } else {
+          setError(json.error ?? 'Falha ao carregar clientes')
+        }
+      } catch (e) {
+        if (e instanceof ProSessionExpiredError) {
+          router.push('/login?next=/pro/clientes')
+          return
+        }
+        setError(e instanceof Error ? e.message : 'Falha ao carregar clientes')
+      } finally {
+        setLoading(false)
       }
     })()
-  }, [])
+  }, [router])
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
@@ -40,21 +54,20 @@ export default function ProClientesPage() {
       title="Meus clientes"
       subtitle="Só a sua carteira — nada do restante do salão."
     >
+      {error ? <p className="mb-4 text-sm text-danger">{error}</p> : null}
+
       <section className="pro-card p-5">
         <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ['todos', 'Todos'],
-              ['leads', 'Leads quentes'],
-              ['reativar', 'Reativar'],
-            ] as const
-          ).map(([id, label]) => (
+          <button type="button" className="pro-chip" data-active>
+            Todos
+          </button>
+          {['Leads quentes', 'Reativar'].map((label) => (
             <button
-              key={id}
+              key={label}
               type="button"
-              className="pro-chip"
-              data-active={filter === id}
-              onClick={() => setFilter(id)}
+              title="Em breve — depende da Reativação/Upsell em Ações"
+              disabled
+              className="pro-chip cursor-not-allowed opacity-50"
             >
               {label}
             </button>
@@ -82,7 +95,13 @@ export default function ProClientesPage() {
           <span>Valor</span>
         </div>
 
-        {!connected || filtered.length === 0 ? (
+        {loading ? (
+          <div className="animate-pulse space-y-3 py-6">
+            <div className="h-4 w-full rounded bg-border" />
+            <div className="h-4 w-full rounded bg-border" />
+            <div className="h-4 w-2/3 rounded bg-border" />
+          </div>
+        ) : !connected || filtered.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted">
             Nenhum cliente ainda.{' '}
             <Link href="/pro/conectar" className="font-medium text-gold hover:underline">

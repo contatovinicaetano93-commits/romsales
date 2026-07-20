@@ -1,8 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronDown, Circle } from 'lucide-react'
 import { ProShell } from '../_components/ProShell'
+import { proFetch, ProSessionExpiredError } from '../_lib/pro-fetch'
 
 type SectionId = 'agenda' | 'plan' | 'goals' | 'telegram' | 'whatsapp'
 type AgendaStatus = 'unlinked' | 'linked-unit-sync'
@@ -102,6 +104,7 @@ const EMPTY: Connectors = {
 }
 
 export default function ProConectarPage() {
+  const router = useRouter()
   const [connectors, setConnectors] = useState<Connectors>(EMPTY)
   const [open, setOpen] = useState<SectionId | null>('agenda')
   const [busy, setBusy] = useState<string | null>(null)
@@ -124,7 +127,17 @@ export default function ProConectarPage() {
   const [waDisplay, setWaDisplay] = useState('')
 
   const refresh = useCallback(async () => {
-    const res = await fetch('/api/me/connect', { credentials: 'include' })
+    let res: Response
+    try {
+      res = await proFetch('/api/me/connect')
+    } catch (e) {
+      if (e instanceof ProSessionExpiredError) {
+        router.push('/login?next=/pro/conectar')
+        return
+      }
+      setError(e instanceof Error ? e.message : 'Falha ao carregar conectores')
+      return
+    }
     const json = await res.json()
     if (!res.ok) {
       setError(json.error ?? 'Falha ao carregar conectores')
@@ -146,7 +159,7 @@ export default function ProConectarPage() {
       setDailyGoal('')
       setWeeklyGoal('')
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     void refresh()
@@ -174,6 +187,10 @@ export default function ProConectarPage() {
     try {
       await fn()
     } catch (e) {
+      if (e instanceof ProSessionExpiredError) {
+        router.push('/login?next=/pro/conectar')
+        return
+      }
       setError(e instanceof Error ? e.message : 'Falha inesperada')
     } finally {
       setBusy(null)
@@ -182,9 +199,8 @@ export default function ProConectarPage() {
 
   async function connectAgenda() {
     await withBusy('agenda', async () => {
-      const res = await fetch('/api/me/connect', {
+      const res = await proFetch('/api/me/connect', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'connect',
@@ -204,9 +220,8 @@ export default function ProConectarPage() {
 
   async function saveGoals() {
     await withBusy('goals', async () => {
-      const res = await fetch('/api/me/goals', {
+      const res = await proFetch('/api/me/goals', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           daily: Number(dailyGoal),
@@ -223,9 +238,8 @@ export default function ProConectarPage() {
 
   async function genTelegram() {
     await withBusy('telegram', async () => {
-      const res = await fetch('/api/me/telegram', {
+      const res = await proFetch('/api/me/telegram', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       })
@@ -241,9 +255,8 @@ export default function ProConectarPage() {
 
   async function connectWa() {
     await withBusy('whatsapp', async () => {
-      const res = await fetch('/api/me/whatsapp', {
+      const res = await proFetch('/api/me/whatsapp', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phoneNumberId: waPhoneId,

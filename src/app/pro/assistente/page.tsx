@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ProShell } from '../_components/ProShell'
+import { proFetch, ProSessionExpiredError } from '../_lib/pro-fetch'
 
 type Msg = { id: string; role: 'user' | 'assistant'; text: string }
 
 export default function ProAssistentePage() {
+  const router = useRouter()
   const [messages, setMessages] = useState<Msg[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,23 +26,34 @@ export default function ProAssistentePage() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch('/api/pro/assistente', { credentials: 'include' })
-      const json = await res.json()
-      if (!res.ok) return
-      setAiUsed(json.data?.ai?.used ?? 0)
-      setAiLimit(json.data?.ai?.limit ?? 40)
-      setAiConfigured(Boolean(json.data?.ai?.configured))
-      if (json.data?.context) {
-        setMessages([
-          {
-            id: 'boot',
-            role: 'assistant',
-            text: json.data.context,
-          },
-        ])
+      try {
+        const res = await proFetch('/api/pro/assistente')
+        const json = await res.json()
+        if (!res.ok) {
+          push('assistant', json.error ?? 'Não consegui carregar sua assistente agora.')
+          return
+        }
+        setAiUsed(json.data?.ai?.used ?? 0)
+        setAiLimit(json.data?.ai?.limit ?? 40)
+        setAiConfigured(Boolean(json.data?.ai?.configured))
+        if (json.data?.context) {
+          setMessages([
+            {
+              id: 'boot',
+              role: 'assistant',
+              text: json.data.context,
+            },
+          ])
+        }
+      } catch (e) {
+        if (e instanceof ProSessionExpiredError) {
+          router.push('/login?next=/pro/assistente')
+          return
+        }
+        push('assistant', e instanceof Error ? e.message : 'Falha de rede.')
       }
     })()
-  }, [])
+  }, [router, push])
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
@@ -56,9 +70,8 @@ export default function ProAssistentePage() {
     }
     setLoading(true)
     try {
-      const res = await fetch('/api/pro/assistente', {
+      const res = await proFetch('/api/pro/assistente', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, question: q }),
       })
@@ -73,8 +86,12 @@ export default function ProAssistentePage() {
         return
       }
       push('assistant', json.data.reply)
-    } catch {
-      push('assistant', 'Falha de rede. Tente de novo.')
+    } catch (e) {
+      if (e instanceof ProSessionExpiredError) {
+        router.push('/login?next=/pro/assistente')
+        return
+      }
+      push('assistant', e instanceof Error ? e.message : 'Falha de rede. Tente de novo.')
     } finally {
       setLoading(false)
     }
