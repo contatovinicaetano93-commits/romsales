@@ -68,13 +68,45 @@ async function signPayload(payload: string) {
   return bytesToHex(new Uint8Array(sig))
 }
 
+// AES-GCM: o cookie v3 é cifrado (não só assinado) — quem abrir DevTools/Application
+// vê apenas bytes opacos, não userId/email/nome em base64 legível.
+async function deriveAesKey() {
+  const secret = sessionSecret()
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`romsales-pro-aes:${secret}`))
+  return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+}
+
+async function encryptPayload(payload: string) {
+  const key = await deriveAesKey()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(payload),
+  )
+  return { iv: toBase64Url(iv), ciphertext: toBase64Url(new Uint8Array(ciphertext)) }
+}
+
+async function decryptPayload(ivB64: string, ciphertextB64: string): Promise<string | null> {
+  try {
+    const key = await deriveAesKey()
+    const iv = fromBase64Url(ivB64)
+    const ciphertext = fromBase64Url(ciphertextB64)
+    const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+    return new TextDecoder().decode(plaintext)
+  } catch {
+    // Tag de autenticação inválida (cookie adulterado) ou secret trocado.
+    return null
+  }
+}
+
 export async function createProSessionToken(
   session: Omit<ProSession, 'panel' | 'exp'> & { panel?: string },
 ) {
   const panel = session.panel ?? getRomPanelId()
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SEC
   const payload = JSON.stringify({
-    v: 2,
+    v: 3,
     userId: session.userId,
     email: session.email.toLowerCase(),
     fullName: session.fullName,
@@ -82,19 +114,11 @@ export async function createProSessionToken(
     panel,
     exp,
   })
-  const sig = await signPayload(payload)
-  return `v2.${toBase64Url(new TextEncoder().encode(payload))}.${sig}`
+  const { iv, ciphertext } = await encryptPayload(payload)
+  return `v3.${iv}.${ciphertext}`
 }
 
-async function parseV2(body: string, sig: string): Promise<ProSession | null> {
-  let payload: string
-  try {
-    payload = new TextDecoder().decode(fromBase64Url(body))
-  } catch {
-    return null
-  }
-  const expected = await signPayload(payload)
-  if (!timingSafeEqualHex(sig, expected)) return null
+function parseSessionPayload(payload: string): ProSession | null {
   try {
     const data = JSON.parse(payload) as {
       v?: number
@@ -105,7 +129,7 @@ async function parseV2(body: string, sig: string): Promise<ProSession | null> {
       panel?: string
       exp?: number
     }
-    if (data.v !== 2 || !data.userId || !data.email || !data.fullName) return null
+    if (!data.userId || !data.email || !data.fullName) return null
     if (typeof data.exp !== 'number' || data.exp < Math.floor(Date.now() / 1000)) return null
     return {
       userId: data.userId,
@@ -120,6 +144,24 @@ async function parseV2(body: string, sig: string): Promise<ProSession | null> {
   }
 }
 
+async function parseV3(ivB64: string, ciphertextB64: string): Promise<ProSession | null> {
+  const payload = await decryptPayload(ivB64, ciphertextB64)
+  if (!payload) return null
+  return parseSessionPayload(payload)
+}
+
+async function parseV2(body: string, sig: string): Promise<ProSession | null> {
+  let payload: string
+  try {
+    payload = new TextDecoder().decode(fromBase64Url(body))
+  } catch {
+    return null
+  }
+  const expected = await signPayload(payload)
+  if (!timingSafeEqualHex(sig, expected)) return null
+  return parseSessionPayload(payload)
+}
+
 export async function parseProSessionToken(
   token: string | undefined | null,
 ): Promise<ProSession | null> {
@@ -131,10 +173,14 @@ export async function parseProSessionToken(
   }
 
   const parts = token.split('.')
+  if (parts[0] === 'v3' && parts.length === 3) {
+    return parseV3(parts[1]!, parts[2]!)
+  }
   if (parts[0] === 'v2' && parts.length === 3) {
+    // Cookies antigos (assinados, não cifrados) ainda são aceitos até expirar (30d),
+    // mas todo login novo já sai como v3 cifrado.
     return parseV2(parts[1]!, parts[2]!)
   }
-  // Legado com `|` não é mais aceito (força re-login com cookie v2).
   return null
 }
 

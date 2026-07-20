@@ -45,14 +45,20 @@ export async function getProClients(
   const clients: ProClient[] = []
 
   try {
+    // Mesmo critério de "minha carteira" que src/lib/pro/actions.ts usa: quem
+    // efetivamente atendeu (client_services.professional_name), não um rótulo
+    // separado de "preferido" que pode ficar desatualizado. distinct on (id)
+    // porque um cliente pode ter vários serviços com esse profissional.
     const prefs = (await sql`
-      select name
-      from contacts
-      where anonymized_at is null
-        and (
-          lower(coalesce(preferred_hairstylist, '')) = lower(${pro})
-          or lower(coalesce(preferred_manicurist, '')) = lower(${pro})
-        )
+      select name, last_contact_at from (
+        select distinct on (c.id) c.id, c.name, c.last_contact_at
+        from client_services cs
+        join contacts c on c.id = cs.contact_id
+        where cs.active = true
+          and lower(cs.professional_name) = lower(${pro})
+          and c.anonymized_at is null
+        order by c.id
+      ) t
       order by last_contact_at desc nulls last
       limit 12
     `) as { name: string | null }[]
