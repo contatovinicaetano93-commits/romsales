@@ -1,6 +1,7 @@
 import { askAI, isAiConfigured } from '@/lib/ai/client'
 import { getProDaySummary } from '@/lib/pro/data-plane'
 import { getRomsalesProduct } from '@/lib/pro/product'
+import { isValidRomPanelId } from '@/lib/brand'
 import type { ProUserRow } from '@/lib/pro/store'
 import { buildConnectorStatus } from '@/lib/pro/store'
 
@@ -177,7 +178,7 @@ export async function askProAssistant(
   question: string,
 ): Promise<{ reply: string; usedAi: boolean }> {
   const ctx = await buildProAssistantContext(user)
-  const product = getRomsalesProduct()
+  const product = getRomsalesProduct(isValidRomPanelId(user.panel) ? user.panel : undefined)
   const trimmed = question.trim()
   if (!trimmed) {
     return { reply: 'Digite uma pergunta sobre agenda, meta ou clientes.', usedAi: false }
@@ -209,7 +210,7 @@ export async function morningBriefingForUser(user: ProUserRow) {
   if (!isAiConfigured()) {
     return { reply: formatMorningBriefing(ctx), usedAi: false }
   }
-  const product = getRomsalesProduct()
+  const product = getRomsalesProduct(isValidRomPanelId(user.panel) ? user.panel : undefined)
   const system = `Você é o Assistente ${product.productName}. Gere um briefing da manhã curto (máx. 10 linhas) com foco e 3 ações.`
   try {
     const reply = (

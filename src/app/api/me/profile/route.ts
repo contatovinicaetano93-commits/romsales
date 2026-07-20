@@ -3,6 +3,7 @@ import { ok, err, handleError } from '@/lib/api-response'
 import { requireProSession } from '@/lib/pro/auth'
 import { buildConnectorStatus, getProUserById } from '@/lib/pro/store'
 import { getRomsalesProduct } from '@/lib/pro/product'
+import { isValidRomPanelId } from '@/lib/brand'
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
     const user = await getProUserById(auth.session.userId)
     if (!user) return err('Conta não encontrada', 404)
 
-    const product = getRomsalesProduct()
+    const product = getRomsalesProduct(isValidRomPanelId(user.panel) ? user.panel : undefined)
     const connectors = buildConnectorStatus(user)
     return ok({
       userId: user.id,
