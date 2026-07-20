@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
-import { ok, handleError } from '@/lib/api-response'
+import { ok, err, handleError } from '@/lib/api-response'
+import { requireSession } from '@/lib/auth'
 import { listContactsWithSummary } from '@/lib/contact-summary'
 import { upsertContact, logEvent, updateContact } from '@/lib/contacts'
 import { addService } from '@/lib/services'
@@ -24,6 +25,9 @@ const schema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const { searchParams } = new URL(req.url)
     const pendingOnly = searchParams.get('pending') === 'true'
     const sort = searchParams.get('sort') ?? 'urgency'
@@ -52,6 +56,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const body = await req.json()
     const payload = schema.parse(body)
 

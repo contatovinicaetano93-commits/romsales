@@ -23,6 +23,7 @@
     { "id": "020_romsales_connectors", "file": "delta-romsales-connectors.sql", "panels": ["brasil", "iguatemi"] },
     { "id": "021_romsales_ai", "file": "delta-romsales-ai.sql", "panels": ["brasil", "iguatemi"] },
     { "id": "022_romsales_hardening", "file": "delta-romsales-hardening.sql", "panels": ["brasil", "iguatemi"] },
-    { "id": "023_romsales_rate_limits", "file": "delta-romsales-rate-limits.sql", "panels": ["brasil", "iguatemi"] }
+    { "id": "023_romsales_rate_limits", "file": "delta-romsales-rate-limits.sql", "panels": ["brasil", "iguatemi"] },
+    { "id": "024_pro_professional_name_idx", "file": "delta-pro-professional-name-idx.sql", "panels": ["brasil", "iguatemi"] }
   ]
 }

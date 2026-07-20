@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { ok, err, handleError } from '@/lib/api-response'
+import { requireSession } from '@/lib/auth'
 import {
   getContactById,
   updateContact,
@@ -42,8 +43,11 @@ function isUnsetPreference(value: string | null | undefined) {
   return value == null
 }
 
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const { id } = await ctx.params
     let contact = await getContactById(id)
     if (!contact) return err('Contato não encontrado', 404)
@@ -96,6 +100,9 @@ const patchSchema = z.object({
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const { id } = await ctx.params
     const body = patchSchema.parse(await req.json())
 

@@ -152,7 +152,7 @@ export async function getMigrationStatus(opts?: {
   const panel = opts?.panel ?? getRomPanelId()
   const cwd = opts?.cwd ?? process.cwd()
   const registered = listMigrationsForPanel(panel, cwd)
-  const sql = getSql()
+  const sql = getSql(panel)
 
   try {
     await sql`

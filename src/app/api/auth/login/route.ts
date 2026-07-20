@@ -8,9 +8,17 @@ import {
   validateCredentials,
 } from '@/lib/auth'
 import { LoginRequestSchema } from '@/lib/schemas'
+import { clientKey, hitRateLimit } from '@/lib/pro/rate-limit'
 
 export async function POST(req: NextRequest) {
   if (!isAuthEnabled()) return ok({ auth: 'disabled', role: 'admin', can_view_revenue: true })
+
+  const rl = await hitRateLimit({
+    key: clientKey(req, 'team-login'),
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  })
+  if (!rl.ok) return err('Muitas tentativas. Aguarde alguns minutos.', 429)
 
   const body = await req.json().catch(() => null)
 

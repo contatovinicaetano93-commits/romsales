@@ -1,4 +1,6 @@
-import { ok, handleError } from '@/lib/api-response'
+import { NextRequest } from 'next/server'
+import { ok, err, handleError } from '@/lib/api-response'
+import { requireSession } from '@/lib/auth'
 import { getLatestSalonP1Daily, getSalonP1DailyNear, type P1ProfessionalRow } from '@/lib/salon/p1-metrics'
 
 function addDays(day: string, delta: number): string {
@@ -11,8 +13,11 @@ interface ProfessionalWithDelta extends P1ProfessionalRow {
   delta: { revenue: number; attended: number; occupancy: number | null } | null
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const latest = await getLatestSalonP1Daily()
 
     if (!latest) {

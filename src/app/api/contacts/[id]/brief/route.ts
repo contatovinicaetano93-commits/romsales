@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { ok, err, handleError } from '@/lib/api-response'
+import { requireSession } from '@/lib/auth'
 import { getContactById, logEvent } from '@/lib/contacts'
 import { listServices, pickLastVisit } from '@/lib/services'
 import { enrichServices } from '@/lib/recommendations'
@@ -9,8 +10,11 @@ import { generateBrief } from '@/lib/brief'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function GET(_req: NextRequest, ctx: Ctx) {
+export async function GET(req: NextRequest, ctx: Ctx) {
   try {
+    const auth = await requireSession(req)
+    if (!auth.ok) return err(auth.message, auth.status)
+
     const { id } = await ctx.params
     const contact = await getContactById(id)
     if (!contact) return err('Contato não encontrado', 404)
