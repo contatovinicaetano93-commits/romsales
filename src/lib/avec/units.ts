@@ -55,8 +55,8 @@ export function isAvecUnitConfigured(unit: AvecUnitEnv): boolean {
   // Lake exige salao_id + DATABASE_URL da unidade (evita sync cruzado / throw no meio do cron).
   if (mode === 'lake') return hasLake && hasDb && hasUnitId
   if (mode === 'rest') return hasRest
-  if (hasLake) return hasDb && hasUnitId
-  return hasRest
+  // auto: fully-configured Lake OR REST — Lake keys alone must not silence REST.
+  return (hasLake && hasDb && hasUnitId) || hasRest
 }
 
 /**

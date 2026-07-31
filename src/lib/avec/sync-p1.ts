@@ -219,7 +219,9 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
     acquisition?: { channel: string; clients: number }[]
     reactivation_count?: number
   } = {}
-  if (professionalsOk) patch.professionals = professionals
+  // Skip empty arrays — [] is an explicit patch value and would wipe prior KPIs
+  // when 0021 returns no rows (or 0126 is only a soft-skipped Lake warning).
+  if (professionalsOk && professionals.length > 0) patch.professionals = professionals
   if (servicesOk) patch.services = services.slice(0, 10)
   if (acquisitionOk) patch.acquisition = acquisition.slice(0, 8)
   if (reactivationOk) patch.reactivation_count = reactivation_count

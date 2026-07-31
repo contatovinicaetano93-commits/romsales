@@ -56,22 +56,34 @@ export async function getProClients(
 
   try {
     const proNorm = normalizeProName(pro)
+    // Resolve accent/case variants first, then scope the client query by those
+    // names before limit — otherwise a global top-N can exclude this pro's clients.
+    const nameRows = (await sql`
+      select distinct professional_name
+      from client_services
+      where active = true
+        and professional_name is not null
+    `) as { professional_name: string | null }[]
+    const matchedNames = nameRows
+      .map((r) => r.professional_name?.trim() || '')
+      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    if (matchedNames.length === 0) return clients
+
     const prefs = (await sql`
-      select name, last_contact_at, professional_name from (
-        select distinct on (c.id) c.id, c.name, c.last_contact_at, cs.professional_name
+      select name, last_contact_at from (
+        select distinct on (c.id) c.id, c.name, c.last_contact_at
         from client_services cs
         join contacts c on c.id = cs.contact_id
         where cs.active = true
+          and cs.professional_name = any(${matchedNames})
           and c.anonymized_at is null
         order by c.id
       ) t
       order by last_contact_at desc nulls last
-      limit 80
-    `) as { name: string | null; professional_name: string | null }[]
+      limit 12
+    `) as { name: string | null }[]
     for (const c of prefs) {
-      if (normalizeProName(c.professional_name ?? '') !== proNorm) continue
       clients.push({ name: c.name?.trim() || 'Cliente' })
-      if (clients.length >= 12) break
     }
   } catch (e) {
     Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
@@ -118,7 +130,7 @@ async function dayStatsFromClientServices(
 
 /**
  * Resumo do dia — só dados do profissional conectado.
- * Fonte: salon_p1_daily (P1) com fallback para client_services do sync (Lake/REST).
+ * Fonte: client_services do sync (Lake/REST) por dia; P1 só se o read do dia falhar.
  */
 export async function getProDaySummary(
   professionalName: string,
@@ -135,47 +147,46 @@ export async function getProDaySummary(
   let appointments = 0
   let attended = 0
   let revenue = 0
-  let fromP1 = false
+  let haveLiveDay = false
 
-  try {
-    const rows = (await sql`
-      select professionals from salon_p1_daily
-      where day = ${day}::date
-      limit 1
-    `) as { professionals: unknown }[]
-    const list = Array.isArray(rows[0]?.professionals) ? rows[0]!.professionals : []
-    const mine = (
-      list as { name?: string; revenue?: number; attended?: number; appointments?: number }[]
-    ).find((p) => normalizeProName(p.name ?? '') === proNorm)
-    if (mine) {
-      revenue = Number(mine.revenue) || 0
-      attended = Number(mine.attended) || 0
-      appointments = Number(mine.appointments) || 0
-      fromP1 = revenue > 0 || attended > 0 || appointments > 0
-    }
-  } catch (e) {
-    Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
-      scope: 'pro.getProDaySummary',
-      panel: validPanel ?? null,
-    })
-  }
-
-  // Fallback / complemento: sync 0051/0002 grava client_services — útil no Lake
-  // (P1 pode estar vazio até o full) e para appointments que o P1 não traz.
+  // Prefer client_services for Hoje — day-scoped. P1 professionals on
+  // salon_p1_daily are a 30-day rolling snapshot and must not override today.
   try {
     const live = await dayStatsFromClientServices(sql, pro, day)
-    if (!fromP1) {
-      appointments = live.appointments
-      attended = live.attended
-      revenue = live.revenue
-    } else if (appointments === 0 && live.appointments > 0) {
-      appointments = live.appointments
-    }
+    appointments = live.appointments
+    attended = live.attended
+    revenue = live.revenue
+    haveLiveDay = true
   } catch (e) {
     Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
       scope: 'pro.getProDaySummary.client_services',
       panel: validPanel ?? null,
     })
+  }
+
+  // P1 only as last resort when day-scoped sync is unavailable.
+  if (!haveLiveDay) {
+    try {
+      const rows = (await sql`
+        select professionals from salon_p1_daily
+        where day = ${day}::date
+        limit 1
+      `) as { professionals: unknown }[]
+      const list = Array.isArray(rows[0]?.professionals) ? rows[0]!.professionals : []
+      const mine = (
+        list as { name?: string; revenue?: number; attended?: number; appointments?: number }[]
+      ).find((p) => normalizeProName(p.name ?? '') === proNorm)
+      if (mine) {
+        revenue = Number(mine.revenue) || 0
+        attended = Number(mine.attended) || 0
+        appointments = Number(mine.appointments) || 0
+      }
+    } catch (e) {
+      Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
+        scope: 'pro.getProDaySummary',
+        panel: validPanel ?? null,
+      })
+    }
   }
 
   const clients = await getProClients(pro, validPanel)
