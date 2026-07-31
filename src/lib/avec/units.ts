@@ -19,6 +19,8 @@ export function getAvecUnits(): AvecUnitEnv[] {
       avecApiToken: process.env.AVEC_API_TOKEN,
       avecUnitId: process.env.AVEC_UNIT_ID,
       avecBaseUrl: process.env.AVEC_API_URL,
+      avecLakeAccessKeyId: process.env.AVEC_LAKE_ACCESS_KEY_ID,
+      avecLakeSecretAccessKey: process.env.AVEC_LAKE_SECRET_ACCESS_KEY,
     },
     {
       panel: 'iguatemi',
@@ -26,6 +28,10 @@ export function getAvecUnits(): AvecUnitEnv[] {
       avecApiToken: process.env.AVEC_API_TOKEN_IGUATEMI,
       avecUnitId: process.env.AVEC_UNIT_ID_IGUATEMI,
       avecBaseUrl: process.env.AVEC_API_URL_IGUATEMI || process.env.AVEC_API_URL,
+      avecLakeAccessKeyId:
+        process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI || process.env.AVEC_LAKE_ACCESS_KEY_ID,
+      avecLakeSecretAccessKey:
+        process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI || process.env.AVEC_LAKE_SECRET_ACCESS_KEY,
     },
   ]
 }
@@ -34,7 +40,10 @@ export function isAvecUnitConfigured(unit: AvecUnitEnv): boolean {
   if (unit.panel === 'brasil' && (process.env.AVEC_MOCK === '1' || process.env.AVEC_MOCK === 'true')) {
     return true
   }
-  return Boolean(unit.avecApiToken?.trim())
+  return Boolean(
+    unit.avecApiToken?.trim() ||
+      (unit.avecLakeAccessKeyId?.trim() && unit.avecLakeSecretAccessKey?.trim())
+  )
 }
 
 /**

@@ -399,7 +399,7 @@ export async function runAvecSync(mode: AvecSyncMode = 'full'): Promise<AvecSync
 
 async function runAvecSyncUnlocked(mode: AvecSyncMode): Promise<AvecSyncRun> {
   if (!isAvecConfigured()) {
-    throw new Error('Avec não configurado — defina AVEC_API_TOKEN')
+    throw new Error('Avec não configurado — defina AVEC_API_TOKEN ou AVEC_LAKE_*')
   }
 
   const deployment = getDeploymentContext()

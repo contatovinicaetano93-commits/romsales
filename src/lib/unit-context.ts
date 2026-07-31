@@ -12,6 +12,8 @@ export interface UnitRuntimeEnv {
   avecApiToken?: string
   avecUnitId?: string
   avecBaseUrl?: string
+  avecLakeAccessKeyId?: string
+  avecLakeSecretAccessKey?: string
 }
 
 const storage = new AsyncLocalStorage<UnitRuntimeEnv>()

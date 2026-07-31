@@ -74,9 +74,17 @@ ROMSALES_PRO_ONLY=1
 ROMSALES_PRO_SESSION_SECRET=   # openssl rand -hex 32
 ROMSALES_CONNECTOR_SECRET=     # openssl rand -hex 32 (criptografa tokens Avec/WhatsApp)
 CRON_SECRET=
-AVEC_API_TOKEN=                # sync da unidade (necessário para Hoje ter dados)
-AVEC_UNIT_ID=
+AVEC_API_TOKEN=                # sync REST (opcional se usar Lake)
+AVEC_UNIT_ID=                  # salao_id no Lake (40613 Brasil / 99801 Iguatemi)
+AVEC_DATA_SOURCE=auto          # auto | lake | rest
+AVEC_LAKE_ACCESS_KEY_ID=       # Access Key AvecLake (AKIA…)
+AVEC_LAKE_SECRET_ACCESS_KEY=   # Secret AvecLake
+AVEC_LAKE_REGION=us-west-2
+AVEC_LAKE_DATABASE=avec_lake_db
+AVEC_LAKE_WORKGROUP=avec_daas
 ```
+
+Sem token REST, use **AvecLake**: as chaves `AKIA…` do e-mail “Acesso ao AvecLake” + `AVEC_UNIT_ID` do salão.
 
 `ROMSALES_CONNECTOR_SECRET` é obrigatório em produção. Não há migration de schema:
 `avec_api_token` e `wa_access_token` continuam `text`, e o ciphertext `v1:<iv>:<ciphertext>:<tag>` cabe nas colunas atuais.

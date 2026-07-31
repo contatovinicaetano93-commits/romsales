@@ -311,14 +311,14 @@ export default function ProConectarPage() {
           summary={
             connectors.agenda.connected
               ? `Vinculado · ${connectors.agenda.professionalName}`
-              : 'Nome + token Avec desta unidade'
+              : 'Nome + token REST ou AvecLake (AKIA…)'
           }
           open={open === 'agenda'}
           onToggle={() => toggle('agenda')}
         >
           <p className="mb-3 text-sm text-muted">
-            O token é validado e salvo. O Hoje e a Assistente leem o sync Avec da unidade
-            (cron), filtrado pelo seu nome — ainda não há sync pessoal só com este token.
+            O token é validado e salvo. O Hoje e a Assistente leem o sync da unidade (cron),
+            filtrado pelo seu nome — Avec REST ou AvecLake (Athena).
           </p>
           <label className="block text-[0.65rem] uppercase tracking-[0.18em] text-muted">
             Fonte
@@ -348,12 +348,14 @@ export default function ProConectarPage() {
               className="pro-input mt-2"
               value={apiToken}
               onChange={(e) => setApiToken(e.target.value)}
-              placeholder="Token Avec (ou mock em dev)"
+              placeholder="AKIA…|secret (Lake) ou token REST"
               autoComplete="off"
             />
           </label>
           <p className="mt-1 text-xs text-muted">
-            Em desenvolvimento com mock: use o token <code className="text-gold">mock</code>.
+            AvecLake: <code className="text-gold">AKIA…|secret</code>. Se a unidade já tem Lake na
+            Vercel, pode usar só a Access Key ou <code className="text-gold">lake</code>. Em dev:{' '}
+            <code className="text-gold">mock</code>.
           </p>
 
           <label className="mt-3 block text-[0.65rem] uppercase tracking-[0.18em] text-muted">
@@ -362,7 +364,7 @@ export default function ProConectarPage() {
               className="pro-input mt-2"
               value={unitId}
               onChange={(e) => setUnitId(e.target.value)}
-              placeholder="site / unidade no Avec"
+              placeholder="salao_id Lake (ex.: 40613) ou site REST"
               autoComplete="off"
             />
           </label>

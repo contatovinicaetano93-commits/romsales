@@ -9,13 +9,19 @@ O deploy Romsales é **pro-only** no boundary: superfície de equipe redireciona
 ## Plano de dados atual
 
 ```
-Avec (token da UNIDADE: AVEC_API_TOKEN)
+Avec UNIDADE:
+  REST  AVEC_API_TOKEN  → api.avec.beauty/reports/*
+  ou
+  Lake  AVEC_LAKE_*     → Athena (avec_lake_db / workgroup avec_daas)
   → cron /api/avec/sync (+ webhook /api/webhooks/avec)
   → salon_p1_daily / contacts (Neon do deploy Romsales)
   → src/lib/pro/data-plane.ts (unit-sync)
   → Hoje / Assistente / Clientes
        filtrados por professional_name do perfil pro
 ```
+
+Lake mapeia clientes (`salao_cliente`), agenda (`reservas`) e atendidos (`comanda_itens`).
+KPIs P1/P2/P3 e alguns relatórios B/C ainda são REST-only (skip no modo Lake).
 
 O Conectar grava `avec_api_token` no perfil **após ping de validação**. Esse token
 **não** alimenta o read-model do Hoje/Assistente/Clientes ainda (`dataPlane: unit-sync`).

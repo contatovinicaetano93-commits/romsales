@@ -297,6 +297,12 @@ export function parseOptionalMoney(raw: unknown): number | null {
   }
   const str = String(raw).trim()
   if (str === '') return null
+  // Athena/JSON: "230.0" / "85.0000" — ponto decimal, sem milhar.
+  if (/^-?\d+(\.\d+)?$/.test(str)) {
+    const n = Number(str)
+    return Number.isFinite(n) && n > 0 ? n : null
+  }
+  // Planilha BR: "1.234,56" ou "R$ 230,00"
   const cleaned = str.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')
   const n = Number(cleaned)
   if (!Number.isFinite(n) || n <= 0) return null

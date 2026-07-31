@@ -56,8 +56,17 @@ export function validateDeploymentEnv(): DeploymentValidation {
     warnings.push('DATABASE_URL ausente — use um banco Neon dedicado por unidade (nunca compartilhe entre Brasil e Iguatemi).')
   }
 
-  if (!process.env.AVEC_API_TOKEN?.trim() && process.env.AVEC_MOCK !== '1' && process.env.AVEC_MOCK !== 'true') {
-    warnings.push('AVEC_API_TOKEN ausente — cada unidade precisa do token Avec da própria loja.')
+  const hasRest = Boolean(process.env.AVEC_API_TOKEN?.trim())
+  const hasLake =
+    Boolean(process.env.AVEC_LAKE_ACCESS_KEY_ID?.trim()) &&
+    Boolean(process.env.AVEC_LAKE_SECRET_ACCESS_KEY?.trim())
+  if (!hasRest && !hasLake && process.env.AVEC_MOCK !== '1' && process.env.AVEC_MOCK !== 'true') {
+    warnings.push(
+      'Avec ausente — configure AVEC_API_TOKEN (REST) ou AVEC_LAKE_ACCESS_KEY_ID + AVEC_LAKE_SECRET_ACCESS_KEY (Lake).'
+    )
+  }
+  if (hasLake && !process.env.AVEC_UNIT_ID?.trim()) {
+    warnings.push('AVEC_UNIT_ID ausente — no AvecLake use o salao_id (ex.: 40613 Brasil, 99801 Iguatemi).')
   }
 
   return { ok: warnings.length === 0, warnings }

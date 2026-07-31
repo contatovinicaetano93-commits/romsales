@@ -84,7 +84,10 @@ export async function getHealthStatus() {
       configured: isAvecConfigured(),
       mock: isAvecMock(),
       base_url: getAvecBaseUrl(),
-      token: envOk('AVEC_API_TOKEN'),
+      token: envOk('AVEC_API_TOKEN') || (envOk('AVEC_LAKE_ACCESS_KEY_ID') && envOk('AVEC_LAKE_SECRET_ACCESS_KEY')),
+      lake:
+        envOk('AVEC_LAKE_ACCESS_KEY_ID') && envOk('AVEC_LAKE_SECRET_ACCESS_KEY'),
+      data_source: process.env.AVEC_DATA_SOURCE?.trim() || 'auto',
       webhook_secret: envOk('AVEC_WEBHOOK_SECRET'),
       webhook_url: '/api/webhooks/avec',
       last_fast: lastFast,

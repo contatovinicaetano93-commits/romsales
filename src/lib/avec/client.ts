@@ -7,6 +7,11 @@ import { getMockReport } from '@/lib/avec/fixtures'
 import { todayIso } from '@/lib/salon/format'
 import { isProduction } from '@/lib/env'
 import { getUnitEnvOverride } from '@/lib/unit-context'
+import {
+  fetchAllAvecLakeReport,
+  isAvecLakeConfigured,
+  shouldUseAvecLake,
+} from '@/lib/avec/lake'
 
 export const AVEC_DEFAULT_API_URL = 'https://api.avec.beauty'
 
@@ -47,9 +52,13 @@ export function getAvecBaseUrl() {
 }
 
 export function isAvecConfigured() {
+  if (isAvecMock()) return true
+  if (shouldUseAvecLake() && isAvecLakeConfigured()) return true
   const override = getUnitEnvOverride()
-  if (override) return Boolean(override.avecApiToken) || isAvecMock()
-  return Boolean(process.env.AVEC_API_TOKEN) || isAvecMock()
+  if (override) {
+    return Boolean(override.avecApiToken) || Boolean(override.avecLakeAccessKeyId)
+  }
+  return Boolean(process.env.AVEC_API_TOKEN) || isAvecLakeConfigured()
 }
 
 /** ID da unidade no Avec (quando configurado) — escopa o sync pra não misturar unidades. */
@@ -66,7 +75,11 @@ export function avecSiteParam(): string {
 
 export async function testAvecConnection() {
   if (!isAvecConfigured()) {
-    return { ok: false as const, baseUrl: getAvecBaseUrl(), error: 'AVEC_API_TOKEN não configurado' }
+    return {
+      ok: false as const,
+      baseUrl: getAvecBaseUrl(),
+      error: 'Avec não configurado (AVEC_API_TOKEN ou AVEC_LAKE_*)',
+    }
   }
   if (isAvecMock()) {
     const payload = await fetchAvecReport('0004', { page: 1, limit: 1 })
@@ -74,13 +87,31 @@ export async function testAvecConnection() {
     return { ok: true as const, baseUrl: getAvecBaseUrl(), sample_rows: rows.length, mock: true as const }
   }
   try {
+    if (shouldUseAvecLake()) {
+      const result = await fetchAllAvecLakeReport('0004', {
+        page: 1,
+        limit: 1,
+        site: avecSiteParam(),
+      })
+      return {
+        ok: true as const,
+        baseUrl: 'avec-lake://athena',
+        sample_rows: result.rows.length,
+        source: 'lake' as const,
+      }
+    }
     const payload = await fetchAvecReport('0004', { page: 1, limit: 1 })
     const rows = extractRows(payload)
-    return { ok: true as const, baseUrl: getAvecBaseUrl(), sample_rows: rows.length }
+    return {
+      ok: true as const,
+      baseUrl: getAvecBaseUrl(),
+      sample_rows: rows.length,
+      source: 'rest' as const,
+    }
   } catch (e) {
     return {
       ok: false as const,
-      baseUrl: getAvecBaseUrl(),
+      baseUrl: shouldUseAvecLake() ? 'avec-lake://athena' : getAvecBaseUrl(),
       error: e instanceof Error ? e.message : String(e),
     }
   }
@@ -208,6 +239,25 @@ export async function fetchAllAvecReport(
   params: AvecReportParams = {},
   maxPages = getAvecSyncMaxPages()
 ): Promise<AvecReportFetchResult> {
+  if (!isAvecMock() && shouldUseAvecLake()) {
+    try {
+      return await fetchAllAvecLakeReport(reportId, params, maxPages)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // Relatórios ainda sem SQL Lake (P1/P2/P3, cancelamentos etc.) — sync segue sem eles.
+      if (msg.includes('ainda não mapeia')) {
+        return {
+          rows: [],
+          truncated: false,
+          pagesFetched: 0,
+          maxPages,
+          limit: params.limit ?? AVEC_PAGE_LIMIT,
+        }
+      }
+      throw e
+    }
+  }
+
   const limit = params.limit ?? AVEC_PAGE_LIMIT
   const all: Record<string, unknown>[] = []
   let pagesFetched = 0

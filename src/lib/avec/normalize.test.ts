@@ -33,6 +33,12 @@ describe('parseOptionalMoney', () => {
     expect(parseOptionalMoney(120)).toBe(120)
   })
 
+  it('parseia decimal Athena/JSON em string ("230.0")', () => {
+    expect(parseOptionalMoney('230.0')).toBe(230)
+    expect(parseOptionalMoney('85.0000')).toBe(85)
+    expect(parseOptionalMoney('1.234,56')).toBe(1234.56)
+  })
+
   it('retorna null quando ausente ou inválido', () => {
     expect(parseOptionalMoney(null)).toBeNull()
     expect(parseOptionalMoney('')).toBeNull()

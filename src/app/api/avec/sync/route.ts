@@ -78,7 +78,7 @@ async function executeUnitSync(mode: AvecSyncMode, opts?: { force?: boolean; cro
 }
 
 /**
- * Roda o sync pra cada unidade configurada (AVEC_API_TOKEN + DATABASE_URL próprios).
+ * Roda o sync pra cada unidade configurada (AVEC_API_TOKEN ou AVEC_LAKE_* + DATABASE_URL).
  * Unidade sem token configurado é pulada em silêncio — mesmo skip que já existia pra
  * "aguardando token", só que agora por unidade em vez de global.
  */
@@ -96,10 +96,10 @@ async function executeSync(
         skipped: true,
         reason: 'aguardando_avec_token',
         mode,
-        note: 'Nenhuma unidade com AVEC_API_TOKEN configurado — cron ignorado',
+        note: 'Nenhuma unidade com Avec (REST ou Lake) configurado — cron ignorado',
       })
     }
-    return err('Avec não configurado (AVEC_API_TOKEN)', 503)
+    return err('Avec não configurado (AVEC_API_TOKEN ou AVEC_LAKE_*)', 503)
   }
 
   const results: Record<string, unknown> = {}
