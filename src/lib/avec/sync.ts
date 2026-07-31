@@ -157,6 +157,15 @@ function warnIfTruncated(stats: AvecSyncStats, reportId: string, result: Awaited
 }
 
 async function syncClients(stats: AvecSyncStats, syncRunId?: string) {
+  // Lake: catálogo inteiro 0004 + upsert 1-a-1 estoura os 300s da Vercel.
+  // Contatos do Hoje já nascem em 0051/0002 (agenda/comandas).
+  if (shouldUseAvecLake()) {
+    stats.warnings.push(
+      'Lake: catálogo 0004 pulado — contatos vêm de reservas/comandas (evita timeout Athena)',
+    )
+    return
+  }
+
   const params = { limit: 250, site: avecSiteParam() }
   const result = await fetchAllAvecReport('0004', params)
   warnIfTruncated(stats, '0004', result)
