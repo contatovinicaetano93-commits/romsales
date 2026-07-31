@@ -462,10 +462,12 @@ export async function fetchAllAvecLakeReport(
   const creds = getAvecLakeCredentials()
   if (!creds) throw new Error('AvecLake não configurado (AVEC_LAKE_ACCESS_KEY_ID / SECRET)')
 
-  const pageLimit = params.limit ?? LAKE_PAGE_LIMIT
+  const pageLimit = Math.max(params.limit ?? LAKE_PAGE_LIMIT, 1)
+  const pageBudget = Math.max(maxPages, 1)
   // Uma única StartQuery por relatório. Loop OFFSET×Athena estourava o timeout
   // Vercel (300s) — dezenas de queries sequenciais no catálogo/agenda.
-  const maxRows = Math.min(Math.max(pageLimit, 1) * Math.max(maxPages, 1), 50_000)
+  // Orçamento = pageLimit × maxPages (mesmo teto do REST / AVEC_SYNC_MAX_PAGES).
+  const maxRows = pageLimit * pageBudget
   const sql = sqlForReport(reportId, params, 0, maxRows)
   const rows = await runAvecLakeQuery(sql, creds)
   const truncated = rows.length >= maxRows
@@ -474,7 +476,8 @@ export async function fetchAllAvecLakeReport(
     rows,
     truncated,
     pagesFetched: 1,
-    maxPages: 1,
-    limit: maxRows,
+    // Metadados no modelo de páginas para formatTruncationWarning / AVEC_SYNC_MAX_PAGES.
+    maxPages: pageBudget,
+    limit: pageLimit,
   }
 }
