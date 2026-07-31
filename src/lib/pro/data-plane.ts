@@ -7,9 +7,14 @@ import { Observability } from '@/lib/observability'
 export type ProDataPlaneMode = 'unit-sync'
 
 export interface ProClient {
+  id?: string
   name: string
+  phone?: string | null
+  /** Último serviço (nome) na carteira deste profissional. */
   service?: string
   time?: string
+  lastVisitAt?: string | null
+  lastPrice?: number | null
 }
 
 export interface ProHojeSummary {
@@ -49,10 +54,12 @@ export function normalizeProName(name: string): string {
 export async function getProClients(
   professionalName: string,
   panel?: string,
+  opts?: { limit?: number },
 ): Promise<ProClient[]> {
   const sql = getSql(isValidRomPanelId(panel) ? panel : undefined)
   const pro = professionalName.trim()
   const clients: ProClient[] = []
+  const limit = Math.min(Math.max(opts?.limit ?? 12, 1), 200)
 
   try {
     const proNorm = normalizeProName(pro)
@@ -69,21 +76,46 @@ export async function getProClients(
       .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
     if (matchedNames.length === 0) return clients
 
+    // Um contato → linha do serviço mais recente deste pro (prioriza last_done_at).
     const prefs = (await sql`
-      select name, last_contact_at from (
-        select distinct on (c.id) c.id, c.name, c.last_contact_at
+      select id, name, phone, service_name, last_done_at, last_price from (
+        select distinct on (c.id)
+          c.id,
+          c.name,
+          c.phone,
+          cs.name as service_name,
+          cs.last_done_at,
+          cs.last_price,
+          coalesce(cs.last_done_at, cs.scheduled_at, c.last_contact_at) as sort_at
         from client_services cs
         join contacts c on c.id = cs.contact_id
         where cs.active = true
           and cs.professional_name = any(${matchedNames})
           and c.anonymized_at is null
-        order by c.id
+        order by c.id, cs.last_done_at desc nulls last, cs.scheduled_at desc nulls last
       ) t
-      order by last_contact_at desc nulls last
-      limit 12
-    `) as { name: string | null }[]
+      order by sort_at desc nulls last
+      limit ${limit}
+    `) as {
+      id: string
+      name: string | null
+      phone: string | null
+      service_name: string | null
+      last_done_at: string | null
+      last_price: number | null
+    }[]
     for (const c of prefs) {
-      clients.push({ name: c.name?.trim() || 'Cliente' })
+      clients.push({
+        id: c.id,
+        name: c.name?.trim() || 'Cliente',
+        phone: c.phone?.trim() || null,
+        service: c.service_name?.trim() || undefined,
+        lastVisitAt: c.last_done_at,
+        lastPrice:
+          c.last_price != null && Number.isFinite(Number(c.last_price))
+            ? Number(c.last_price)
+            : null,
+      })
     }
   } catch (e) {
     Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
