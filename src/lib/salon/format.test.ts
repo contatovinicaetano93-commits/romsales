@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toSalonDateIso } from './format'
+import { salonWallTimeToUtcIso, toSalonDateIso } from './format'
 
 describe('toSalonDateIso', () => {
   it('converte instante perto da meia-noite SP sem usar slice UTC', () => {
@@ -12,5 +12,17 @@ describe('toSalonDateIso', () => {
   it('retorna null para inválido', () => {
     expect(toSalonDateIso(null)).toBeNull()
     expect(toSalonDateIso('não-é-data')).toBeNull()
+  })
+})
+
+describe('salonWallTimeToUtcIso', () => {
+  it('trata madrugada BRT sem cair no dia anterior', () => {
+    // 31/07/2026 01:00 America/Sao_Paulo = 31/07/2026 04:00 UTC
+    expect(salonWallTimeToUtcIso(2026, 6, 31, 1, 0)).toBe('2026-07-31T04:00:00.000Z')
+    expect(toSalonDateIso(salonWallTimeToUtcIso(2026, 6, 31, 1, 0))).toBe('2026-07-31')
+  })
+
+  it('mantém tarde BRT no mesmo dia', () => {
+    expect(salonWallTimeToUtcIso(2026, 2, 10, 14, 0)).toBe('2026-03-10T17:00:00.000Z')
   })
 })

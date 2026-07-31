@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { brDateToIso, parseAvecLakeToken, shouldUseAvecLake } from '@/lib/avec/lake'
+import {
+  brDateToIso,
+  isAvecLakeReportSupported,
+  lakeTokenForStorage,
+  parseAvecLakeToken,
+  shouldUseAvecLake,
+} from '@/lib/avec/lake'
 
 const SAMPLE_KEY = 'AKIAIOSFODNN7EXAMPLE'
 
@@ -26,6 +32,34 @@ describe('parseAvecLakeToken', () => {
 
   it('rejeita token REST comum', () => {
     expect(parseAvecLakeToken('abc123token')).toBeNull()
+  })
+})
+
+describe('lakeTokenForStorage', () => {
+  it('não persiste o secret AWS', () => {
+    expect(lakeTokenForStorage(`${SAMPLE_KEY}|super-secret`)).toBe(`lake:${SAMPLE_KEY}`)
+  })
+
+  it('marca lake:unit para keyword', () => {
+    expect(lakeTokenForStorage('lake')).toBe('lake:unit')
+  })
+
+  it('ignora token REST', () => {
+    expect(lakeTokenForStorage('rest-token-xyz')).toBeNull()
+  })
+})
+
+describe('isAvecLakeReportSupported', () => {
+  it('mapeia P1/hoje e carteira', () => {
+    expect(isAvecLakeReportSupported('0021')).toBe(true)
+    expect(isAvecLakeReportSupported('0051')).toBe(true)
+    expect(isAvecLakeReportSupported('0052')).toBe(true)
+    expect(isAvecLakeReportSupported('revenue')).toBe(true)
+  })
+
+  it('não mapeia estoque/P2', () => {
+    expect(isAvecLakeReportSupported('0149')).toBe(false)
+    expect(isAvecLakeReportSupported('0056')).toBe(false)
   })
 })
 

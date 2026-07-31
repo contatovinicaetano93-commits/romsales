@@ -6,8 +6,10 @@ import {
   normalizeAppointmentRow,
   normalizeAttendanceRow,
   normalizePhone,
+  parseAvecDateTime,
   parseOptionalMoney,
 } from '@/lib/avec/normalize'
+import { toSalonDateIso } from '@/lib/salon/format'
 
 describe('normalizePhone', () => {
   it('normaliza celular BR com DDD', () => {
@@ -44,6 +46,18 @@ describe('parseOptionalMoney', () => {
     expect(parseOptionalMoney('')).toBeNull()
     expect(parseOptionalMoney(0)).toBeNull()
     expect(parseOptionalMoney(-5)).toBeNull()
+  })
+})
+
+describe('parseAvecDateTime', () => {
+  it('interpreta ISO Athena e BR como parede America/Sao_Paulo', () => {
+    const early = parseAvecDateTime('2026-07-31', '01:00')
+    expect(early).toBe('2026-07-31T04:00:00.000Z')
+    expect(toSalonDateIso(early)).toBe('2026-07-31')
+
+    const br = parseAvecDateTime('31/07/2026', '01:00')
+    expect(br).toBe('2026-07-31T04:00:00.000Z')
+    expect(toSalonDateIso(br)).toBe('2026-07-31')
   })
 })
 

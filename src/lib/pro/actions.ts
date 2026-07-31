@@ -3,6 +3,7 @@ import { enrichServices, computeRecommendations, type Recommendation } from '@/l
 import type { ClientService, ScheduledServiceRow } from '@/lib/services'
 import { isValidRomPanelId, type RomPanelId } from '@/lib/brand'
 import { Observability } from '@/lib/observability'
+import { normalizeProName } from '@/lib/pro/data-plane'
 
 export interface ProAction extends Recommendation {
   clientName: string
@@ -29,14 +30,26 @@ export async function getProActions(professionalName: string, panel?: string): P
   const validPanel: RomPanelId | undefined = isValidRomPanelId(panel) ? panel : undefined
   const sql = getSql(validPanel)
   const pro = professionalName.trim()
+  const proNorm = normalizeProName(pro)
 
   try {
+    const nameRows = (await sql`
+      select distinct professional_name
+      from client_services
+      where active = true
+        and professional_name is not null
+    `) as { professional_name: string | null }[]
+    const matchedNames = nameRows
+      .map((r) => r.professional_name?.trim() || '')
+      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    if (matchedNames.length === 0) return []
+
     const rows = (await sql`
       select cs.*, c.name as contact_name
       from client_services cs
       join contacts c on c.id = cs.contact_id
       where cs.active = true
-        and lower(cs.professional_name) = lower(${pro})
+        and cs.professional_name = any(${matchedNames})
         and c.anonymized_at is null
       order by cs.contact_id
     `) as ScheduledServiceRow[]

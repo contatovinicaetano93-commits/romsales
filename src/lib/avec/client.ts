@@ -10,6 +10,7 @@ import { getUnitEnvOverride } from '@/lib/unit-context'
 import {
   fetchAllAvecLakeReport,
   isAvecLakeConfigured,
+  isAvecLakeReportSupported,
   shouldUseAvecLake,
 } from '@/lib/avec/lake'
 
@@ -59,9 +60,13 @@ export function isAvecConfigured() {
     (override ? override.avecApiToken : process.env.AVEC_API_TOKEN)?.trim()
   )
   const hasLake = isAvecLakeConfigured()
+  const hasUnitId = Boolean((override ? override.avecUnitId : process.env.AVEC_UNIT_ID)?.trim())
+  const hasDb = Boolean((override ? override.databaseUrl : process.env.DATABASE_URL)?.trim())
+  // Alinhado a isAvecUnitConfigured: Lake só “ok” com salao_id + DB.
+  const lakeReady = hasLake && hasUnitId && hasDb
   if (mode === 'rest') return hasRest
-  if (mode === 'lake') return hasLake
-  return hasRest || hasLake
+  if (mode === 'lake') return lakeReady
+  return hasRest || lakeReady
 }
 
 /** ID da unidade no Avec (quando configurado) — escopa o sync pra não misturar unidades. */
@@ -237,15 +242,23 @@ export function formatTruncationWarning(reportId: string, result: AvecReportFetc
   return `Relatório ${label} (${reportId}) atingiu o limite de ${result.maxPages} páginas (${result.rows.length} linhas, ${result.limit}/página). Pode haver dados não sincronizados — aumente AVEC_SYNC_MAX_PAGES na Vercel.`
 }
 
+function hasRestToken(): boolean {
+  const override = getUnitEnvOverride()
+  return Boolean((override?.avecApiToken ?? process.env.AVEC_API_TOKEN)?.trim())
+}
+
 export async function fetchAllAvecReport(
   reportId: string,
   params: AvecReportParams = {},
   maxPages = getAvecSyncMaxPages()
 ): Promise<AvecReportFetchResult> {
-  if (!isAvecMock() && shouldUseAvecLake()) {
-    // Relatórios sem SQL Lake (P1/P2/P3 etc.) propagam erro — callers com
-    // partial-failure (syncP1Kpis) não sobrescrevem KPIs com arrays vazios.
+  // Hybrid: Lake para relatórios mapeados; REST fallback quando houver token;
+  // sem REST → erro "ainda não mapeia" (callers tratam como warning).
+  if (!isAvecMock() && shouldUseAvecLake() && isAvecLakeReportSupported(reportId)) {
     return fetchAllAvecLakeReport(reportId, params, maxPages)
+  }
+  if (!isAvecMock() && shouldUseAvecLake() && !isAvecLakeReportSupported(reportId) && !hasRestToken()) {
+    throw new Error(`AvecLake ainda não mapeia o relatório ${reportId}`)
   }
 
   const limit = params.limit ?? AVEC_PAGE_LIMIT

@@ -1,5 +1,58 @@
 export const SALON_TIMEZONE = 'America/Sao_Paulo'
 
+function salonTzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  const map: Record<string, string> = {}
+  for (const part of dtf.formatToParts(date)) {
+    if (part.type !== 'literal') map[part.type] = part.value
+  }
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  )
+  return asUtc - date.getTime()
+}
+
+/**
+ * Interpreta data/hora de parede no fuso do salão → ISO UTC.
+ * Evita `new Date(y, m, d, h, mi)` (TZ do servidor) e ISO sem `Z` ambíguo.
+ */
+export function salonWallTimeToUtcIso(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second = 0,
+  timeZone = SALON_TIMEZONE,
+): string | null {
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) return null
+  const guess = new Date(Date.UTC(year, monthIndex, day, hour, minute, second))
+  if (Number.isNaN(guess.getTime())) return null
+  let offset = salonTzOffsetMs(guess, timeZone)
+  let utcMs = guess.getTime() - offset
+  const offset2 = salonTzOffsetMs(new Date(utcMs), timeZone)
+  if (offset2 !== offset) {
+    offset = offset2
+    utcMs = guess.getTime() - offset
+  }
+  const result = new Date(utcMs)
+  return Number.isNaN(result.getTime()) ? null : result.toISOString()
+}
+
 /** Data calendária de hoje no fuso do salão (YYYY-MM-DD). */
 export function todayIso(timeZone = SALON_TIMEZONE): string {
   return new Intl.DateTimeFormat('en-CA', {

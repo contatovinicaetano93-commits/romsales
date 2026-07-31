@@ -43,6 +43,19 @@ export interface AvecLakeReportFetchResult {
 const LAKE_PAGE_LIMIT = 250
 const LAKE_MAX_PAGES_DEFAULT = 200
 
+/** Relatórios com SQL Athena — demais usam REST (hybrid) ou skip limpo. */
+const LAKE_SUPPORTED_REPORTS = new Set([
+  '0004',
+  '0051',
+  '0002',
+  '0052',
+  '0021',
+  '0032',
+  'revenue',
+  '0036',
+  '0020',
+])
+
 function getLakeMaxPages() {
   const raw = process.env.AVEC_SYNC_MAX_PAGES?.trim()
   if (!raw) return LAKE_MAX_PAGES_DEFAULT
@@ -80,6 +93,15 @@ export function parseAvecLakeToken(raw: string): { accessKeyId: string; secretAc
   return null
 }
 
+/** Valor persistido no perfil — nunca guarda o secret AWS. */
+export function lakeTokenForStorage(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (/^lake$/i.test(trimmed)) return 'lake:unit'
+  const parsed = parseAvecLakeToken(trimmed)
+  if (!parsed) return null
+  return `lake:${parsed.accessKeyId}`
+}
+
 export function getAvecLakeCredentials(): AvecLakeCredentials | null {
   const override = getUnitEnvOverride()
   const accessKeyId = (override?.avecLakeAccessKeyId ?? process.env.AVEC_LAKE_ACCESS_KEY_ID)?.trim()
@@ -101,7 +123,11 @@ export function isAvecLakeConfigured(): boolean {
   return getAvecLakeCredentials() != null
 }
 
-/** auto: Lake se credenciais Lake existirem; senão REST. lake: força Athena (erro claro se faltar credencial). */
+export function isAvecLakeReportSupported(reportId: string): boolean {
+  return LAKE_SUPPORTED_REPORTS.has(reportId)
+}
+
+/** auto: Lake se credenciais existirem; lake: força Athena (erro no fetch se faltar); rest: nunca. */
 export function shouldUseAvecLake(): boolean {
   const mode = (process.env.AVEC_DATA_SOURCE?.trim() || 'auto').toLowerCase()
   if (mode === 'rest') return false
@@ -133,12 +159,13 @@ function resolveDateBounds(params: AvecLakeReportParams): { inicio: string; fim:
 
 function resolveSalaoId(params: AvecLakeReportParams): string | null {
   const fromParam = params.site != null ? String(params.site).trim() : ''
-  if (fromParam) return fromParam
-  // Mesmo contrato de getAvecUnitId: com override de unidade, NÃO cair no
-  // AVEC_UNIT_ID global (evita Iguatemi ler salao_id do Brasil).
   const override = getUnitEnvOverride()
-  if (override) return override.avecUnitId?.trim() || null
-  return process.env.AVEC_UNIT_ID?.trim() || null
+  const raw = fromParam || (override ? override.avecUnitId?.trim() || '' : process.env.AVEC_UNIT_ID?.trim() || '')
+  if (!raw) return null
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`AVEC_UNIT_ID inválido (esperado salao_id numérico): ${raw}`)
+  }
+  return raw
 }
 
 function createAthenaClient(creds: AvecLakeCredentials): AthenaClient {
@@ -235,6 +262,14 @@ export async function verifyAvecLakeCredentials(creds: AvecLakeCredentials): Pro
   if (!rows.length) throw new Error('AvecLake respondeu sem linhas')
 }
 
+const INACTIVE_RESERVA_SQL = `
+  upper(COALESCE(r.status, '')) LIKE '%CANCEL%'
+  OR upper(COALESCE(r.status, '')) LIKE '%FALTA%'
+  OR upper(COALESCE(r.status, '')) LIKE '%NO-SHOW%'
+  OR upper(COALESCE(r.status, '')) LIKE '%NOSHOW%'
+  OR upper(COALESCE(r.status, '')) LIKE '%EXCLU%'
+`
+
 function sqlForReport(
   reportId: string,
   params: AvecLakeReportParams,
@@ -272,8 +307,9 @@ SELECT
   CAST(r.salao_cliente_id AS varchar) AS cliente_id,
   r.cliente_nome,
   r.cliente_telefone AS celular,
-  CAST(r.data_reserva AS varchar) AS data,
-  regexp_replace(COALESCE(r.hora_inicial, ''), ' h$', '') AS hora,
+  -- dd/mm/yyyy (não ISO) — parseAvecDateTime trata como parede America/Sao_Paulo
+  date_format(r.data_reserva, '%d/%m/%Y') AS data,
+  regexp_replace(COALESCE(r.hora_inicial, '10:00'), ' h$', '') AS hora,
   s.servico AS servico,
   p.nome AS profissional,
   r.valor,
@@ -282,10 +318,29 @@ FROM reservas r
 LEFT JOIN salao_servicos s
   ON s.id = r.servico_id AND CAST(s.salao_id AS varchar) = CAST(r.salao_id AS varchar)
 LEFT JOIN profissionais p
-  ON p.id = r.profissional_id
+  ON p.id = r.profissional_id AND CAST(p.salao_id AS varchar) = CAST(r.salao_id AS varchar)
 WHERE CAST(r.salao_id AS varchar) = ${salaoLit}
   AND r.data_reserva BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
+  AND NOT (${INACTIVE_RESERVA_SQL})
 ORDER BY r.data_reserva, r.hora_inicial_minutos, r.id
+OFFSET ${offset}
+LIMIT ${limit}
+`.trim()
+  }
+
+  if (reportId === '0052') {
+    if (!bounds) throw new Error('Relatório 0052 (cancelamentos) exige inicio/fim')
+    return `
+SELECT
+  CAST(r.salao_cliente_id AS varchar) AS cliente_id,
+  r.cliente_nome AS cliente_nome,
+  date_format(r.data_reserva, '%d/%m/%Y') AS data,
+  r.status
+FROM reservas r
+WHERE CAST(r.salao_id AS varchar) = ${salaoLit}
+  AND r.data_reserva BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
+  AND (${INACTIVE_RESERVA_SQL})
+ORDER BY r.data_reserva, r.id
 OFFSET ${offset}
 LIMIT ${limit}
 `.trim()
@@ -293,8 +348,6 @@ LIMIT ${limit}
 
   if (reportId === '0002') {
     if (!bounds) throw new Error('Relatório 0002 (comandas) exige inicio/fim')
-    // data em dd/mm/yyyy (+ hora meio-dia) — ISO date-only vira UTC midnight e
-    // toSalonDateIso em America/Sao_Paulo cai no dia anterior no filtro "hoje".
     return `
 SELECT
   CAST(c.salao_cliente_id AS varchar) AS cliente_id,
@@ -309,7 +362,8 @@ SELECT
 FROM comanda_itens ci
 JOIN comandas c ON c.id = ci.comanda_id
 LEFT JOIN salao_cliente cl ON cl.id = c.salao_cliente_id
-LEFT JOIN profissionais p ON p.id = ci.profissional_id
+LEFT JOIN profissionais p
+  ON p.id = ci.profissional_id AND CAST(p.salao_id AS varchar) = CAST(c.salao_id AS varchar)
 WHERE CAST(c.salao_id AS varchar) = ${salaoLit}
   AND c.data BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
   AND c.status = 'FINALIZADA'
@@ -320,7 +374,52 @@ LIMIT ${limit}
 `.trim()
   }
 
-  // Faturamento diário (mapper revenue) — soma comandas finalizadas
+  // 0021 — faturamento / atendimentos por profissional (salon_p1_daily; Hoje usa client_services do dia)
+  if (reportId === '0021') {
+    if (!bounds) throw new Error('Relatório 0021 exige inicio/fim')
+    return `
+SELECT
+  p.nome AS profissional,
+  CAST(SUM(ci.valor) AS varchar) AS faturamento,
+  CAST(COUNT(*) AS varchar) AS atendimentos
+FROM comanda_itens ci
+JOIN comandas c ON c.id = ci.comanda_id
+JOIN profissionais p
+  ON p.id = ci.profissional_id AND CAST(p.salao_id AS varchar) = CAST(c.salao_id AS varchar)
+WHERE CAST(c.salao_id AS varchar) = ${salaoLit}
+  AND c.data BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
+  AND c.status = 'FINALIZADA'
+  AND ci.tipo = 'salao_servicos'
+  AND p.nome IS NOT NULL
+GROUP BY p.nome
+ORDER BY SUM(ci.valor) DESC
+OFFSET ${offset}
+LIMIT ${limit}
+`.trim()
+  }
+
+  // 0032 — top serviços
+  if (reportId === '0032') {
+    if (!bounds) throw new Error('Relatório 0032 exige inicio/fim')
+    return `
+SELECT
+  ci.item AS servico,
+  CAST(COUNT(*) AS varchar) AS quantidade,
+  CAST(SUM(ci.valor) AS varchar) AS faturamento
+FROM comanda_itens ci
+JOIN comandas c ON c.id = ci.comanda_id
+WHERE CAST(c.salao_id AS varchar) = ${salaoLit}
+  AND c.data BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
+  AND c.status = 'FINALIZADA'
+  AND ci.tipo = 'salao_servicos'
+  AND ci.item IS NOT NULL
+GROUP BY ci.item
+ORDER BY SUM(ci.valor) DESC
+OFFSET ${offset}
+LIMIT ${limit}
+`.trim()
+  }
+
   if (reportId === 'revenue' || reportId === '0036' || reportId === '0020') {
     if (!bounds) throw new Error(`Relatório ${reportId} exige inicio/fim`)
     return `

@@ -84,7 +84,12 @@ AVEC_LAKE_DATABASE=avec_lake_db
 AVEC_LAKE_WORKGROUP=avec_daas
 ```
 
-Sem token REST, use **AvecLake**: as chaves `AKIA…` do e-mail “Acesso ao AvecLake” + `AVEC_UNIT_ID` do salão.
+Sem token REST, use **AvecLake**: `AVEC_LAKE_*` + `AVEC_UNIT_ID` (salao_id numérico; Brasil `40613`,
+Iguatemi `99801`). No Conectar o profissional cola `AKIA…|secret` (ou `lake` / só a Access Key se
+as envs da unidade já estão na Vercel). O secret **não** é persistido no perfil — só validação Athena.
+
+Iguatemi: defina `AVEC_UNIT_ID_IGUATEMI` (+ `DATABASE_URL_IGUATEMI`) para herdar as Lake keys do Brasil;
+sem unit id, o cron Iguatemi não usa Lake.
 
 `ROMSALES_CONNECTOR_SECRET` é obrigatório em produção. Não há migration de schema:
 `avec_api_token` e `wa_access_token` continuam `text`, e o ciphertext `v1:<iv>:<ciphertext>:<tag>` cabe nas colunas atuais.

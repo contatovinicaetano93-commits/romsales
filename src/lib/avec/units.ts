@@ -5,13 +5,14 @@ import { runWithUnitEnv, type UnitRuntimeEnv } from '@/lib/unit-context'
  * Config Avec por unidade — mesmo padrão do Cérebro (um banco + um token por unidade),
  * só que aqui o sync roda dentro de UM deploy só, alternando o contexto por iteração.
  *
- * Brasil usa as variáveis originais (sem sufixo) — comportamento idêntico ao de hoje.
- * Iguatemi usa o sufixo `_IGUATEMI`; enquanto AVEC_API_TOKEN_IGUATEMI não existir,
- * essa unidade fica de fora do sync automaticamente (mesmo skip silencioso que já existe).
+ * Brasil usa as variáveis originais (sem sufixo).
+ * Iguatemi usa sufixo `_IGUATEMI`. Lake keys só herdadas se AVEC_UNIT_ID_IGUATEMI existir
+ * (evita sync Iguatemi acidental só porque o Brasil tem AVEC_LAKE_*).
  */
 export type AvecUnitEnv = UnitRuntimeEnv
 
 export function getAvecUnits(): AvecUnitEnv[] {
+  const iguatemiUnitId = process.env.AVEC_UNIT_ID_IGUATEMI?.trim()
   return [
     {
       panel: 'brasil',
@@ -28,10 +29,13 @@ export function getAvecUnits(): AvecUnitEnv[] {
       avecApiToken: process.env.AVEC_API_TOKEN_IGUATEMI,
       avecUnitId: process.env.AVEC_UNIT_ID_IGUATEMI,
       avecBaseUrl: process.env.AVEC_API_URL_IGUATEMI || process.env.AVEC_API_URL,
-      avecLakeAccessKeyId:
-        process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI || process.env.AVEC_LAKE_ACCESS_KEY_ID,
-      avecLakeSecretAccessKey:
-        process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI || process.env.AVEC_LAKE_SECRET_ACCESS_KEY,
+      // Só reutiliza Lake keys do Brasil se a unidade Iguatemi estiver explícita.
+      avecLakeAccessKeyId: iguatemiUnitId
+        ? process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI || process.env.AVEC_LAKE_ACCESS_KEY_ID
+        : process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI,
+      avecLakeSecretAccessKey: iguatemiUnitId
+        ? process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI || process.env.AVEC_LAKE_SECRET_ACCESS_KEY
+        : process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI,
     },
   ]
 }
@@ -45,9 +49,14 @@ export function isAvecUnitConfigured(unit: AvecUnitEnv): boolean {
   const hasLake = Boolean(
     unit.avecLakeAccessKeyId?.trim() && unit.avecLakeSecretAccessKey?.trim()
   )
+  const hasDb = Boolean(unit.databaseUrl?.trim())
+  const hasUnitId = Boolean(unit.avecUnitId?.trim())
+
+  // Lake exige salao_id + DATABASE_URL da unidade (evita sync cruzado / throw no meio do cron).
+  if (mode === 'lake') return hasLake && hasDb && hasUnitId
   if (mode === 'rest') return hasRest
-  if (mode === 'lake') return hasLake
-  return hasRest || hasLake
+  // auto: fully-configured Lake OR REST — Lake keys alone must not silence REST.
+  return (hasLake && hasDb && hasUnitId) || hasRest
 }
 
 /**
