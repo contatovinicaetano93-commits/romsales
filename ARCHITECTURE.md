@@ -25,7 +25,8 @@ Lake (Athena) mapeia: clientes `0004`, reservas `0051`, cancelamentos `0052`, co
 Modo `auto`/`lake` usa Athena nos mapeados e cai no REST (se `AVEC_API_TOKEN`) nos demais;
 sem REST, P2/P3/estoque viram **warning** (não derrubam o cron).
 
-Hoje lê `salon_p1_daily` (0021) com fallback em `client_services` do sync.
+Hoje lê `client_services` do sync **do dia** (0051/0002). `salon_p1_daily` (0021, janela ~30d)
+só entra se a leitura do dia falhar — não sobrescreve KPIs diários.
 
 O Conectar valida Lake com ping Athena e grava só fingerprint (`lake:AKIA…` / `lake:unit`) —
 nunca o secret AWS. O token pessoal **não** alimenta o read-model (`dataPlane: unit-sync`).

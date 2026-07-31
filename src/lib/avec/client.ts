@@ -9,7 +9,7 @@ import { isProduction } from '@/lib/env'
 import { getUnitEnvOverride } from '@/lib/unit-context'
 import {
   fetchAllAvecLakeReport,
-  isAvecLakeConfigured,
+  isAvecLakeReady,
   isAvecLakeReportSupported,
   shouldUseAvecLake,
 } from '@/lib/avec/lake'
@@ -59,11 +59,7 @@ export function isAvecConfigured() {
   const hasRest = Boolean(
     (override ? override.avecApiToken : process.env.AVEC_API_TOKEN)?.trim()
   )
-  const hasLake = isAvecLakeConfigured()
-  const hasUnitId = Boolean((override ? override.avecUnitId : process.env.AVEC_UNIT_ID)?.trim())
-  const hasDb = Boolean((override ? override.databaseUrl : process.env.DATABASE_URL)?.trim())
-  // Alinhado a isAvecUnitConfigured: Lake só “ok” com salao_id + DB.
-  const lakeReady = hasLake && hasUnitId && hasDb
+  const lakeReady = isAvecLakeReady()
   if (mode === 'rest') return hasRest
   if (mode === 'lake') return lakeReady
   return hasRest || lakeReady

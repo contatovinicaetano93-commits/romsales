@@ -20,8 +20,8 @@ Romsales (Vercel) ──► Neon próprio
    ├─ UI/API pro: /pro/* + /api/pro/* + /api/me/*
    │
    └─ Dados de agenda/carteira (hoje):
-        sync Avec da UNIDADE (AVEC_API_TOKEN + cron /api/avec/sync)
-        → salon_p1_daily / contacts
+        sync Avec da UNIDADE (Lake ou REST + cron /api/avec/sync)
+        → client_services / contacts (KPIs do dia no Hoje)
         → filtrados por professional_name
 ```
 
