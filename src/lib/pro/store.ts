@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from '@/lib/pro/password'
 import { verifyProAvecToken } from '@/lib/pro/avec-verify'
 import { lakeTokenForStorage } from '@/lib/avec/lake'
 import { encryptSecret } from '@/lib/pro/secrets'
+import { normalizeProName } from '@/lib/pro/data-plane'
 
 export { buildConnectorStatus } from '@/lib/pro/connectors'
 
@@ -374,17 +375,17 @@ export async function connectAgenda(
   const unitId = (input.unitId ?? '').trim() || null
   const panel = getRomPanelId()
 
-  // Impede dois profissionais da mesma unidade reivindicarem o mesmo nome.
-  const taken = (await sql`
-    select user_id
+  // Impede dois profissionais da mesma unidade reivindicarem o mesmo nome
+  // (case/acentos — alinhado ao match do Hoje/Actions).
+  const nameNorm = normalizeProName(name)
+  const peers = (await sql`
+    select user_id, professional_name
     from romsales_pro_profiles
     where panel = ${panel}
       and professional_name is not null
-      and lower(professional_name) = lower(${name})
       and user_id <> ${userId}
-    limit 1
-  `) as { user_id: string }[]
-  if (taken[0]) {
+  `) as { user_id: string; professional_name: string | null }[]
+  if (peers.some((p) => normalizeProName(p.professional_name ?? '') === nameNorm)) {
     throw new Error('Este nome de agenda já está vinculado a outra conta nesta unidade')
   }
 

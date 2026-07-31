@@ -307,8 +307,9 @@ SELECT
   CAST(r.salao_cliente_id AS varchar) AS cliente_id,
   r.cliente_nome,
   r.cliente_telefone AS celular,
-  CAST(r.data_reserva AS varchar) AS data,
-  regexp_replace(COALESCE(r.hora_inicial, ''), ' h$', '') AS hora,
+  -- dd/mm/yyyy (não ISO) — parseAvecDateTime trata como parede America/Sao_Paulo
+  date_format(r.data_reserva, '%d/%m/%Y') AS data,
+  regexp_replace(COALESCE(r.hora_inicial, '10:00'), ' h$', '') AS hora,
   s.servico AS servico,
   p.nome AS profissional,
   r.valor,
@@ -333,7 +334,7 @@ LIMIT ${limit}
 SELECT
   CAST(r.salao_cliente_id AS varchar) AS cliente_id,
   r.cliente_nome AS cliente_nome,
-  CAST(r.data_reserva AS varchar) AS data,
+  date_format(r.data_reserva, '%d/%m/%Y') AS data,
   r.status
 FROM reservas r
 WHERE CAST(r.salao_id AS varchar) = ${salaoLit}
@@ -373,7 +374,7 @@ LIMIT ${limit}
 `.trim()
   }
 
-  // 0021 — faturamento / atendimentos por profissional (alimenta salon_p1_daily → Hoje)
+  // 0021 — faturamento / atendimentos por profissional (salon_p1_daily; Hoje usa client_services do dia)
   if (reportId === '0021') {
     if (!bounds) throw new Error('Relatório 0021 exige inicio/fim')
     return `

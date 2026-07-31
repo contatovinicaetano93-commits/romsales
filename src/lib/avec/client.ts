@@ -60,9 +60,13 @@ export function isAvecConfigured() {
     (override ? override.avecApiToken : process.env.AVEC_API_TOKEN)?.trim()
   )
   const hasLake = isAvecLakeConfigured()
+  const hasUnitId = Boolean((override ? override.avecUnitId : process.env.AVEC_UNIT_ID)?.trim())
+  const hasDb = Boolean((override ? override.databaseUrl : process.env.DATABASE_URL)?.trim())
+  // Alinhado a isAvecUnitConfigured: Lake só “ok” com salao_id + DB.
+  const lakeReady = hasLake && hasUnitId && hasDb
   if (mode === 'rest') return hasRest
-  if (mode === 'lake') return hasLake
-  return hasRest || hasLake
+  if (mode === 'lake') return lakeReady
+  return hasRest || lakeReady
 }
 
 /** ID da unidade no Avec (quando configurado) — escopa o sync pra não misturar unidades. */

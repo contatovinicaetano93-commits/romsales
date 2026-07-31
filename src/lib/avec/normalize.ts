@@ -1,5 +1,7 @@
 // Normalização defensiva — colunas dos relatórios Avec variam por unidade/versão.
 
+import { salonWallTimeToUtcIso } from '@/lib/salon/format'
+
 function pick(row: Record<string, unknown>, keys: string[]): string | null {
   for (const k of keys) {
     const v = row[k]
@@ -136,16 +138,33 @@ export interface NormalizedAvecCancellation {
   noShow: number
 }
 
-// Tenta parsear data/hora em formatos comuns BR + ISO.
+function parseTimeParts(time: string | undefined, fallbackHour: number): [number, number, number] {
+  if (!time) return [fallbackHour, 0, 0]
+  const [hh, mm, ss] = time.split(':').map(Number)
+  return [
+    Number.isFinite(hh) ? hh : fallbackHour,
+    Number.isFinite(mm) ? mm : 0,
+    Number.isFinite(ss) ? ss : 0,
+  ]
+}
+
+// Tenta parsear data/hora em formatos comuns BR + ISO (parede America/Sao_Paulo).
 export function parseAvecDateTime(datePart: string | null, timePart?: string | null): string | null {
   if (!datePart) return null
   const d = datePart.trim()
   const t = timePart?.trim()
 
   if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
-    const iso = t ? `${d.split('T')[0]}T${t}` : d
-    const parsed = new Date(iso)
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    // Já com offset/Z → instante absoluto.
+    if (/[zZ]|[+-]\d{2}:?\d{2}$/.test(d) && !t) {
+      const parsed = new Date(d)
+      return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    }
+    const dateOnly = d.split('T')[0]!
+    const [y, mo, day] = dateOnly.split('-').map(Number)
+    const timeFromIso = d.includes('T') ? d.split('T')[1]?.slice(0, 8) : undefined
+    const [hh, mm, ss] = parseTimeParts(t ?? timeFromIso, t || timeFromIso ? 0 : 12)
+    return salonWallTimeToUtcIso(y!, mo! - 1, day!, hh, mm, ss)
   }
 
   const m = d.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/)
@@ -155,9 +174,8 @@ export function parseAvecDateTime(datePart: string | null, timePart?: string | n
     let year = Number(m[3])
     if (year < 100) year += 2000
     const time = t ?? m[4] ?? '10:00'
-    const [hh, mm, ss] = time.split(':').map(Number)
-    const parsed = new Date(year, month, day, hh || 10, mm || 0, ss || 0)
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+    const [hh, mm, ss] = parseTimeParts(time, 10)
+    return salonWallTimeToUtcIso(year, month, day, hh, mm, ss)
   }
 
   const parsed = new Date(d)
