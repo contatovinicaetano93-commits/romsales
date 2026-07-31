@@ -67,8 +67,8 @@ export function parseAvecLakeToken(raw: string): { accessKeyId: string; secretAc
   const trimmed = raw.trim()
   if (!trimmed) return null
 
-  // AKIA…|secret  ou  AKIA…:secret  ou duas linhas
-  const pipe = trimmed.match(/^(AKIA[0-9A-Z]{16})\s*[|:\n]\s*(.+)$/s)
+  // AKIA…|secret  ou  AKIA…:secret  ou duas linhas (sem flag /s — target ES2017)
+  const pipe = trimmed.match(/^(AKIA[0-9A-Z]{16})\s*[|:\n]\s*([\s\S]+)$/)
   if (pipe) {
     return { accessKeyId: pipe[1]!, secretAccessKey: pipe[2]!.trim() }
   }
