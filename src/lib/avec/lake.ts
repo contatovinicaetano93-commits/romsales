@@ -123,16 +123,29 @@ export function isAvecLakeConfigured(): boolean {
   return getAvecLakeCredentials() != null
 }
 
+/** Lake pronto pra sync: chaves + salao_id + DB (mesmo critério de isAvecUnitConfigured). */
+export function isAvecLakeReady(): boolean {
+  if (!isAvecLakeConfigured()) return false
+  const override = getUnitEnvOverride()
+  const hasUnitId = Boolean((override ? override.avecUnitId : process.env.AVEC_UNIT_ID)?.trim())
+  const hasDb = Boolean((override ? override.databaseUrl : process.env.DATABASE_URL)?.trim())
+  return hasUnitId && hasDb
+}
+
 export function isAvecLakeReportSupported(reportId: string): boolean {
   return LAKE_SUPPORTED_REPORTS.has(reportId)
 }
 
-/** auto: Lake se credenciais existirem; lake: força Athena (erro no fetch se faltar); rest: nunca. */
+/**
+ * auto: Athena só se Lake estiver completo (keys + unit id + DB) — senão REST pode atender.
+ * lake: força Athena (erro no fetch se faltar).
+ * rest: nunca.
+ */
 export function shouldUseAvecLake(): boolean {
   const mode = (process.env.AVEC_DATA_SOURCE?.trim() || 'auto').toLowerCase()
   if (mode === 'rest') return false
   if (mode === 'lake') return true
-  return isAvecLakeConfigured()
+  return isAvecLakeReady()
 }
 
 function sqlString(value: string): string {

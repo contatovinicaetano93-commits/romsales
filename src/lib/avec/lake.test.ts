@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   brDateToIso,
+  isAvecLakeReady,
   isAvecLakeReportSupported,
   lakeTokenForStorage,
   parseAvecLakeToken,
@@ -77,22 +78,41 @@ describe('shouldUseAvecLake', () => {
     process.env = env
   })
 
-  it('auto usa lake quando credenciais existem', () => {
+  it('auto usa lake só quando keys + unit id + DB existem', () => {
     process.env = {
       ...env,
       AVEC_DATA_SOURCE: 'auto',
       AVEC_LAKE_ACCESS_KEY_ID: SAMPLE_KEY,
       AVEC_LAKE_SECRET_ACCESS_KEY: 'secret',
+      AVEC_UNIT_ID: '40613',
+      DATABASE_URL: 'postgres://localhost/test',
     }
+    expect(isAvecLakeReady()).toBe(true)
     expect(shouldUseAvecLake()).toBe(true)
   })
 
-  it('rest força REST mesmo com lake', () => {
+  it('auto não usa lake só com keys (permite REST)', () => {
+    process.env = {
+      ...env,
+      AVEC_DATA_SOURCE: 'auto',
+      AVEC_LAKE_ACCESS_KEY_ID: SAMPLE_KEY,
+      AVEC_LAKE_SECRET_ACCESS_KEY: 'secret',
+      AVEC_UNIT_ID: '',
+      DATABASE_URL: 'postgres://localhost/test',
+    }
+    delete process.env.AVEC_UNIT_ID
+    expect(isAvecLakeReady()).toBe(false)
+    expect(shouldUseAvecLake()).toBe(false)
+  })
+
+  it('rest força REST mesmo com lake completo', () => {
     process.env = {
       ...env,
       AVEC_DATA_SOURCE: 'rest',
       AVEC_LAKE_ACCESS_KEY_ID: SAMPLE_KEY,
       AVEC_LAKE_SECRET_ACCESS_KEY: 'secret',
+      AVEC_UNIT_ID: '40613',
+      DATABASE_URL: 'postgres://localhost/test',
     }
     expect(shouldUseAvecLake()).toBe(false)
   })
