@@ -4,12 +4,35 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search } from 'lucide-react'
+import { formatCurrency, formatVisitDate } from '@/lib/salon/format'
 import { ProShell } from '../_components/ProShell'
 import { proFetch, ProSessionExpiredError } from '../_lib/pro-fetch'
 
+interface ProClientRow {
+  id?: string
+  name: string
+  phone?: string | null
+  service?: string
+  lastVisitAt?: string | null
+  lastPrice?: number | null
+}
+
+function displayPhone(phone: string | null | undefined): string {
+  if (!phone?.trim()) return '—'
+  const digits = phone.replace(/\D/g, '')
+  // +55 (11) 99999-8888
+  if (digits.length === 13 && digits.startsWith('55')) {
+    return `+55 (${digits.slice(2, 4)}) ${digits.slice(4, 9)}-${digits.slice(9)}`
+  }
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  }
+  return phone.trim()
+}
+
 export default function ProClientesPage() {
   const router = useRouter()
-  const [clients, setClients] = useState<{ name: string }[]>([])
+  const [clients, setClients] = useState<ProClientRow[]>([])
   const [connected, setConnected] = useState(true)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +68,14 @@ export default function ProClientesPage() {
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
-    return clients.filter((c) => !query || c.name.toLowerCase().includes(query))
+    const digits = q.replace(/\D/g, '')
+    return clients.filter((c) => {
+      if (!query) return true
+      if (c.name.toLowerCase().includes(query)) return true
+      if (c.phone && digits && c.phone.replace(/\D/g, '').includes(digits)) return true
+      if (c.service?.toLowerCase().includes(query)) return true
+      return false
+    })
   }, [clients, q])
 
   return (
@@ -112,14 +142,16 @@ export default function ProClientesPage() {
           <ul className="divide-y divide-border">
             {filtered.map((c) => (
               <li
-                key={c.name}
+                key={c.id ?? c.name}
                 className="grid gap-1 py-3 text-sm sm:grid-cols-5 sm:items-center sm:gap-3"
               >
                 <span className="font-medium">{c.name}</span>
-                <span className="text-muted">—</span>
-                <span className="text-muted">—</span>
-                <span className="text-muted">—</span>
-                <span className="text-muted">—</span>
+                <span className="text-muted">{displayPhone(c.phone)}</span>
+                <span className="text-muted">{c.service?.trim() || '—'}</span>
+                <span className="text-muted">
+                  {c.lastVisitAt ? formatVisitDate(c.lastVisitAt) : '—'}
+                </span>
+                <span className="text-muted">{formatCurrency(c.lastPrice)}</span>
               </li>
             ))}
           </ul>

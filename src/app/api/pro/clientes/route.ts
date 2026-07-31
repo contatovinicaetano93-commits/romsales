@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     return ok({
-      clients: await getProClients(user.professional_name, user.panel),
+      clients: await getProClients(user.professional_name, user.panel, { limit: 80 }),
       dataSource: getProDataPlaneMode(),
     })
   } catch (e) {
