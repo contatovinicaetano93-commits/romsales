@@ -4,6 +4,7 @@ import { getRomPanelId, isValidRomPanelId, type RomPanelId } from '@/lib/brand'
 import { isProduction } from '@/lib/env'
 import { hashPassword, verifyPassword } from '@/lib/pro/password'
 import { verifyProAvecToken } from '@/lib/pro/avec-verify'
+import { lakeTokenForStorage } from '@/lib/avec/lake'
 import { encryptSecret } from '@/lib/pro/secrets'
 
 export { buildConnectorStatus } from '@/lib/pro/connectors'
@@ -367,7 +368,9 @@ export async function connectAgenda(
   }
   const token = (input.apiToken ?? '').trim()
   await verifyProAvecToken(token)
-  const encryptedToken = encryptSecret(token)
+  // Lake: nunca persiste secret AWS — só marcador/fingerprint criptografado.
+  const toStore = lakeTokenForStorage(token) ?? token
+  const encryptedToken = encryptSecret(toStore)
   const unitId = (input.unitId ?? '').trim() || null
   const panel = getRomPanelId()
 

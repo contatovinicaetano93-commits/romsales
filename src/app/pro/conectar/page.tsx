@@ -353,8 +353,9 @@ export default function ProConectarPage() {
             />
           </label>
           <p className="mt-1 text-xs text-muted">
-            AvecLake: <code className="text-gold">AKIA…|secret</code>. Se a unidade já tem Lake na
-            Vercel, pode usar só a Access Key ou <code className="text-gold">lake</code>. Em dev:{' '}
+            AvecLake: <code className="text-gold">AKIA…|secret</code> (só a Access Key ou{' '}
+            <code className="text-gold">lake</code> se a unidade já tem Lake na Vercel). O secret AWS
+            não fica salvo no perfil — só valida e marca a conexão. Em dev:{' '}
             <code className="text-gold">mock</code>.
           </p>
 

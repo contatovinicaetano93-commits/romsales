@@ -78,7 +78,9 @@ export async function syncP2Kpis(stats: SyncStatsLike, syncRunId?: string) {
       booking_channels.sort((a, b) => b.count - a.count)
       bookingChannelsOk = true
     } catch (e) {
-      stats.errors.push(`P2 0056: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P2 0056: ${msg}`)
+      else stats.errors.push(`P2 0056: ${msg}`)
     }
   }
 
@@ -104,7 +106,9 @@ export async function syncP2Kpis(stats: SyncStatsLike, syncRunId?: string) {
       packages.sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity)
       packagesOk = true
     } catch (e) {
-      stats.errors.push(`P2 0061: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P2 0061: ${msg}`)
+      else stats.errors.push(`P2 0061: ${msg}`)
     }
   }
 
@@ -129,7 +133,9 @@ export async function syncP2Kpis(stats: SyncStatsLike, syncRunId?: string) {
       ratings_avg = n > 0 ? Math.round((sum / n) * 100) / 100 : 0
       ratingsOk = true
     } catch (e) {
-      stats.errors.push(`P2 0104: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P2 0104: ${msg}`)
+      else stats.errors.push(`P2 0104: ${msg}`)
     }
   }
 
@@ -149,7 +155,9 @@ export async function syncP2Kpis(stats: SyncStatsLike, syncRunId?: string) {
       stats.p2_rows = (stats.p2_rows ?? 0) + birthday_count
       birthdaysOk = true
     } catch (e) {
-      stats.errors.push(`P2 0001: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P2 0001: ${msg}`)
+      else stats.errors.push(`P2 0001: ${msg}`)
     }
   }
 
@@ -178,7 +186,9 @@ export async function syncP2Kpis(stats: SyncStatsLike, syncRunId?: string) {
     try {
       await upsertSalonP2Daily(day, patch)
     } catch (e) {
-      stats.errors.push(`P2 upsert: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P2 upsert: ${msg}`)
+      else stats.errors.push(`P2 upsert: ${msg}`)
     }
   }
 }

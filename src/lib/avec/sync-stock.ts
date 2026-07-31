@@ -128,7 +128,9 @@ async function syncPositions(stats: StockSyncStats, syncRunId: string) {
       )
     }
   } catch (e) {
-    stats.errors.push(`0149 (posição): ${e instanceof Error ? e.message : String(e)}`)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('ainda não mapeia')) stats.warnings.push(`0149 (posição): ${msg}`)
+    else stats.errors.push(`0149 (posição): ${msg}`)
   }
 }
 
@@ -151,7 +153,9 @@ async function syncAlerts(stats: StockSyncStats, syncRunId: string) {
     stats.alerts_active = seenAvecProductIds.length
     stats.alerts_resolved = await resolveStaleStockAlerts(seenAvecProductIds)
   } catch (e) {
-    stats.errors.push(`0046 (alertas): ${e instanceof Error ? e.message : String(e)}`)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('ainda não mapeia')) stats.warnings.push(`0046 (alertas): ${msg}`)
+    else stats.errors.push(`0046 (alertas): ${msg}`)
   }
 }
 
@@ -175,7 +179,9 @@ async function syncMovements(stats: StockSyncStats, syncRunId: string) {
       else stats.movements_skipped_duplicate++
     }
   } catch (e) {
-    stats.errors.push(`0044 (movimentos): ${e instanceof Error ? e.message : String(e)}`)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('ainda não mapeia')) stats.warnings.push(`0044 (movimentos): ${msg}`)
+    else stats.errors.push(`0044 (movimentos): ${msg}`)
   }
 }
 
@@ -196,7 +202,9 @@ async function syncPurchaseOrigin(stats: StockSyncStats, syncRunId: string) {
       if (enriched) stats.purchases_enriched++
     }
   } catch (e) {
-    stats.errors.push(`0323 (origem compra): ${e instanceof Error ? e.message : String(e)}`)
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.includes('ainda não mapeia')) stats.warnings.push(`0323 (origem compra): ${msg}`)
+    else stats.errors.push(`0323 (origem compra): ${msg}`)
   }
 }
 
@@ -216,7 +224,9 @@ async function syncValuation(stats: StockSyncStats, syncRunId: string) {
       if (result.truncated) stats.warnings.push(formatTruncationWarning(id, result))
       await snapshotSafe(id, job.params, result.rows, stats, syncRunId)
     } catch (e) {
-      stats.errors.push(`${id} (valorização): ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings.push(`${id} (valorização): ${msg}`)
+      else stats.errors.push(`${id} (valorização): ${msg}`)
     }
   }
 }

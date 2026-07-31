@@ -93,8 +93,13 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
         byPro.set(p.name, cur)
       }
     } catch (e) {
-      professionalsFailed = true
-      stats.errors.push(`P1 0021: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) {
+        stats.warnings?.push(`P1 0021: ${msg}`)
+      } else {
+        professionalsFailed = true
+        stats.errors.push(`P1 0021: ${msg}`)
+      }
     }
   }
 
@@ -119,8 +124,14 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
         byPro.set(o.name, cur)
       }
     } catch (e) {
-      professionalsFailed = true
-      stats.errors.push(`P1 0126: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      // 0126 ainda sem Lake — ocupação é opcional; 0021 basta pro Hoje.
+      if (msg.includes('ainda não mapeia')) {
+        stats.warnings?.push(`P1 0126: ${msg}`)
+      } else {
+        professionalsFailed = true
+        stats.errors.push(`P1 0126: ${msg}`)
+      }
     }
   }
 
@@ -155,7 +166,9 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
       services.sort((a, b) => b.revenue - a.revenue || b.quantity - a.quantity)
       servicesOk = true
     } catch (e) {
-      stats.errors.push(`P1 0032: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P1 0032: ${msg}`)
+      else stats.errors.push(`P1 0032: ${msg}`)
     }
   }
 
@@ -175,7 +188,9 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
       acquisition.sort((a, b) => b.clients - a.clients)
       acquisitionOk = true
     } catch (e) {
-      stats.errors.push(`P1 0003: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P1 0003: ${msg}`)
+      else stats.errors.push(`P1 0003: ${msg}`)
     }
   }
 
@@ -190,7 +205,9 @@ export async function syncP1Kpis(stats: SyncStatsLike, syncRunId?: string) {
       stats.p1_rows = (stats.p1_rows ?? 0) + rows.length
       reactivationOk = true
     } catch (e) {
-      stats.errors.push(`P1 0107: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P1 0107: ${msg}`)
+      else stats.errors.push(`P1 0107: ${msg}`)
     }
   }
 

@@ -81,7 +81,9 @@ export async function syncP3Kpis(stats: SyncStatsLike, syncRunId?: string) {
       if (n > 0) return_rate = Math.round((sum / n) * 10000) / 10000
       returnRateOk = true
     } catch (e) {
-      stats.errors.push(`P3 0007: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P3 0007: ${msg}`)
+      else stats.errors.push(`P3 0007: ${msg}`)
     }
   }
 
@@ -105,7 +107,9 @@ export async function syncP3Kpis(stats: SyncStatsLike, syncRunId?: string) {
       }
       newClientsOk = true
     } catch (e) {
-      stats.errors.push(`P3 0017: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P3 0017: ${msg}`)
+      else stats.errors.push(`P3 0017: ${msg}`)
     }
   }
 
@@ -129,7 +133,9 @@ export async function syncP3Kpis(stats: SyncStatsLike, syncRunId?: string) {
       revenue_curve.sort((a, b) => a.day.localeCompare(b.day))
       revenueCurveOk = true
     } catch (e) {
-      stats.errors.push(`P3 0088: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P3 0088: ${msg}`)
+      else stats.errors.push(`P3 0088: ${msg}`)
     }
   }
 
@@ -148,7 +154,9 @@ export async function syncP3Kpis(stats: SyncStatsLike, syncRunId?: string) {
     try {
       await upsertSalonP3Daily(day, patch)
     } catch (e) {
-      stats.errors.push(`P3 upsert: ${e instanceof Error ? e.message : String(e)}`)
+      const msg = e instanceof Error ? e.message : String(e)
+      if (msg.includes('ainda não mapeia')) stats.warnings?.push(`P3 upsert: ${msg}`)
+      else stats.errors.push(`P3 upsert: ${msg}`)
     }
   }
 }

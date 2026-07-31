@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { getProDataPlaneMode } from './data-plane'
+import { getProDataPlaneMode, normalizeProName } from './data-plane'
+
+describe('normalizeProName', () => {
+  it('ignora case, acentos e espaços extras', () => {
+    expect(normalizeProName('  Romeu  Felipe ')).toBe('romeu felipe')
+    expect(normalizeProName('José Antônio')).toBe('jose antonio')
+    expect(normalizeProName('ROMEÚ FELIPE')).toBe('romeu felipe')
+  })
+})
 
 describe('getProDataPlaneMode', () => {
   const original = process.env.ROMSALES_DATA_PLANE

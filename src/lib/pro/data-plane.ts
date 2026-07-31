@@ -36,6 +36,16 @@ export function getProDataPlaneMode(): ProDataPlaneMode {
     : 'unit-sync'
 }
 
+/** Compara nomes de agenda ignorando case/acentos/espaços extras. */
+export function normalizeProName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+}
+
 export async function getProClients(
   professionalName: string,
   panel?: string,
@@ -45,29 +55,25 @@ export async function getProClients(
   const clients: ProClient[] = []
 
   try {
-    // Mesmo critério de "minha carteira" que src/lib/pro/actions.ts usa: quem
-    // efetivamente atendeu (client_services.professional_name), não um rótulo
-    // separado de "preferido" que pode ficar desatualizado. distinct on (id)
-    // porque um cliente pode ter vários serviços com esse profissional.
+    const proNorm = normalizeProName(pro)
     const prefs = (await sql`
-      select name, last_contact_at from (
-        select distinct on (c.id) c.id, c.name, c.last_contact_at
+      select name, last_contact_at, professional_name from (
+        select distinct on (c.id) c.id, c.name, c.last_contact_at, cs.professional_name
         from client_services cs
         join contacts c on c.id = cs.contact_id
         where cs.active = true
-          and lower(cs.professional_name) = lower(${pro})
           and c.anonymized_at is null
         order by c.id
       ) t
       order by last_contact_at desc nulls last
-      limit 12
-    `) as { name: string | null }[]
+      limit 80
+    `) as { name: string | null; professional_name: string | null }[]
     for (const c of prefs) {
+      if (normalizeProName(c.professional_name ?? '') !== proNorm) continue
       clients.push({ name: c.name?.trim() || 'Cliente' })
+      if (clients.length >= 12) break
     }
   } catch (e) {
-    // Unit-sync é best-effort pra superfície pro — cai pro estado vazio, mas o erro
-    // real (ex.: banco da unidade fora do ar) não pode desaparecer silenciosamente.
     Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
       scope: 'pro.getProClients',
       panel: panel ?? null,
@@ -77,10 +83,42 @@ export async function getProClients(
   return clients
 }
 
+async function dayStatsFromClientServices(
+  sql: ReturnType<typeof getSql>,
+  pro: string,
+  day: string,
+): Promise<{ appointments: number; attended: number; revenue: number }> {
+  const proNorm = normalizeProName(pro)
+
+  // Busca o dia e filtra no JS (acentos/case) — lower() SQL não normaliza NFKD.
+  const apptRows = (await sql`
+    select professional_name
+    from client_services
+    where active = true
+      and scheduled_at is not null
+      and (scheduled_at at time zone 'America/Sao_Paulo')::date = ${day}::date
+  `) as { professional_name: string | null }[]
+
+  const doneRows = (await sql`
+    select professional_name, last_price
+    from client_services
+    where active = true
+      and last_done_at is not null
+      and (last_done_at at time zone 'America/Sao_Paulo')::date = ${day}::date
+  `) as { professional_name: string | null; last_price: number | null }[]
+
+  const appointments = apptRows.filter((r) => normalizeProName(r.professional_name ?? '') === proNorm)
+    .length
+  const mineDone = doneRows.filter((r) => normalizeProName(r.professional_name ?? '') === proNorm)
+  const attended = mineDone.length
+  const revenue = mineDone.reduce((sum, r) => sum + (Number(r.last_price) || 0), 0)
+
+  return { appointments, attended, revenue }
+}
+
 /**
  * Resumo do dia — só dados do profissional conectado.
- * Fonte atual: sync da unidade (salon_p1_daily / contacts) filtrado por nome.
- * O token Avec salvo no perfil ainda NÃO alimenta este read-model.
+ * Fonte: salon_p1_daily (P1) com fallback para client_services do sync (Lake/REST).
  */
 export async function getProDaySummary(
   professionalName: string,
@@ -92,10 +130,12 @@ export async function getProDaySummary(
   const sql = getSql(validPanel)
   const pro = professionalName.trim()
   const dataSource = getProDataPlaneMode()
+  const proNorm = normalizeProName(pro)
 
   let appointments = 0
   let attended = 0
   let revenue = 0
+  let fromP1 = false
 
   try {
     const rows = (await sql`
@@ -106,15 +146,34 @@ export async function getProDaySummary(
     const list = Array.isArray(rows[0]?.professionals) ? rows[0]!.professionals : []
     const mine = (
       list as { name?: string; revenue?: number; attended?: number; appointments?: number }[]
-    ).find((p) => (p.name ?? '').trim().toLowerCase() === pro.toLowerCase())
+    ).find((p) => normalizeProName(p.name ?? '') === proNorm)
     if (mine) {
       revenue = Number(mine.revenue) || 0
       attended = Number(mine.attended) || 0
       appointments = Number(mine.appointments) || 0
+      fromP1 = revenue > 0 || attended > 0 || appointments > 0
     }
   } catch (e) {
     Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
       scope: 'pro.getProDaySummary',
+      panel: validPanel ?? null,
+    })
+  }
+
+  // Fallback / complemento: sync 0051/0002 grava client_services — útil no Lake
+  // (P1 pode estar vazio até o full) e para appointments que o P1 não traz.
+  try {
+    const live = await dayStatsFromClientServices(sql, pro, day)
+    if (!fromP1) {
+      appointments = live.appointments
+      attended = live.attended
+      revenue = live.revenue
+    } else if (appointments === 0 && live.appointments > 0) {
+      appointments = live.appointments
+    }
+  } catch (e) {
+    Observability.captureException(e instanceof Error ? e : new Error(String(e)), {
+      scope: 'pro.getProDaySummary.client_services',
       panel: validPanel ?? null,
     })
   }
@@ -140,7 +199,7 @@ export async function getProDaySummary(
     connected: true,
     dataSource,
     note:
-      appointments === 0 && clients.length === 0
+      appointments === 0 && attended === 0 && clients.length === 0
         ? 'Agenda conectada. Dados aparecem após o sync Avec da unidade (cron) — o token pessoal ainda não puxa agenda sozinho.'
         : 'Recorte só da sua carteira nesta unidade (via sync da unidade).',
   }

@@ -23,6 +23,7 @@ import {
   avecSiteParam,
   getAvecUnitId,
 } from '@/lib/avec/client'
+import { shouldUseAvecLake } from '@/lib/avec/lake'
 import {
   normalizeClientRow,
   normalizeAppointmentRow,
@@ -194,6 +195,18 @@ async function syncAppointments(stats: AvecSyncStats, mode: AvecSyncMode, syncRu
       const appt = normalizeAppointmentRow(row)
       if (!appt) continue
 
+      // REST/Lake: ignora cancelados/faltas (Lake já filtra no SQL; belt-and-suspenders).
+      const st = (appt.status ?? '').toLowerCase()
+      if (
+        st.includes('cancel') ||
+        st.includes('falta') ||
+        st.includes('no-show') ||
+        st.includes('noshow') ||
+        st.includes('exclu')
+      ) {
+        continue
+      }
+
       if (mode === 'fast' && appt.scheduledAt) {
         const day = toSalonDateIso(appt.scheduledAt)
         if (day !== today) continue
@@ -313,6 +326,8 @@ async function syncRevenue(stats: AvecSyncStats, syncRunId?: string) {
 
   let reportId = resolveReportId(def)
   if (!reportId && isAvecMock()) reportId = 'revenue'
+  // Lake mapeia o alias `revenue` — não exige AVEC_REPORT_REVENUE.
+  if (!reportId && shouldUseAvecLake()) reportId = 'revenue'
   if (!reportId) {
     stats.warnings.push('AVEC_REPORT_REVENUE não configurado — faturamento pulado')
     return
@@ -370,7 +385,7 @@ async function syncCancellations(
     result = await fetchAllAvecReport(reportId, params)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    // Lake ainda não mapeia 0052 — não derruba o sync inteiro.
+    // Relatório não mapeado no Lake (ou sem REST) — não derruba o sync.
     if (msg.includes('ainda não mapeia')) {
       stats.warnings.push(`Cancelamentos: ${msg}`)
       return

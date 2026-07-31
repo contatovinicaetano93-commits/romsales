@@ -18,24 +18,37 @@ async function pingAvec(token: string) {
 }
 
 async function verifyLakeToken(trimmed: string): Promise<boolean> {
+  const isLakeKeyword = /^lake$/i.test(trimmed)
   const parsed = parseAvecLakeToken(trimmed)
-  if (!parsed) return false
+  if (!isLakeKeyword && !parsed) return false
 
   const envCreds = getAvecLakeCredentials()
-  const secret = parsed.secretAccessKey ?? envCreds?.secretAccessKey
+
+  if (isLakeKeyword) {
+    if (!envCreds) {
+      throw new Error('AvecLake não configurado na unidade (AVEC_LAKE_*)')
+    }
+    try {
+      await verifyAvecLakeCredentials(envCreds)
+    } catch {
+      throw new Error('Credenciais AvecLake da unidade inválidas ou Athena indisponível')
+    }
+    return true
+  }
+
+  const secret = parsed!.secretAccessKey ?? envCreds?.secretAccessKey
   if (!secret) {
     throw new Error(
       'Credencial AvecLake incompleta — use AKIA…|secret ou configure AVEC_LAKE_SECRET_ACCESS_KEY na Vercel'
     )
   }
 
-  // Access key sozinho: aceita se bater com o da unidade.
-  if (!parsed.secretAccessKey && envCreds?.accessKeyId && parsed.accessKeyId === envCreds.accessKeyId) {
-    return true
+  if (!parsed!.secretAccessKey && envCreds && parsed!.accessKeyId !== envCreds.accessKeyId) {
+    throw new Error('Access Key não corresponde à unidade configurada (AVEC_LAKE_ACCESS_KEY_ID)')
   }
 
   const creds: AvecLakeCredentials = {
-    accessKeyId: parsed.accessKeyId,
+    accessKeyId: parsed!.accessKeyId,
     secretAccessKey: secret,
     region: envCreds?.region ?? 'us-west-2',
     database: envCreds?.database ?? 'avec_lake_db',
@@ -60,13 +73,6 @@ export async function verifyProAvecToken(token: string): Promise<void> {
     return
   }
 
-  if (/^lake$/i.test(trimmed)) {
-    if (!getAvecLakeCredentials()) {
-      throw new Error('AvecLake não configurado na unidade (AVEC_LAKE_*)')
-    }
-    return
-  }
-
   // Se a unidade tem token REST configurado, aceita o mesmo (uso interno ROM).
   const unitToken = process.env.AVEC_API_TOKEN?.trim()
   if (unitToken && trimmed === unitToken) return
@@ -74,7 +80,7 @@ export async function verifyProAvecToken(token: string): Promise<void> {
   if (await verifyLakeToken(trimmed)) return
 
   // Não tenta REST se parece Access Key AWS — evita vazar AKIA no header Authorization.
-  if (/^AKIA[0-9A-Z]{16}/.test(trimmed)) {
+  if (/^AKIA[0-9A-Z]{16}/.test(trimmed) || /^lake$/i.test(trimmed)) {
     throw new Error('Credenciais AvecLake inválidas — confira Access Key e Secret')
   }
 
@@ -85,7 +91,6 @@ export async function verifyProAvecToken(token: string): Promise<void> {
     throw new Error('Não foi possível validar o token na Avec — tente de novo')
   }
 
-  // Uma retentativa rápida em 429/5xx (blip da Avec).
   if (res.status === 429 || res.status >= 500) {
     await new Promise((r) => setTimeout(r, 400))
     try {

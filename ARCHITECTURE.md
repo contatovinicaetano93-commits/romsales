@@ -20,11 +20,15 @@ Avec UNIDADE:
        filtrados por professional_name do perfil pro
 ```
 
-Lake mapeia clientes (`salao_cliente`), agenda (`reservas`) e atendidos (`comanda_itens`).
-KPIs P1/P2/P3 e alguns relatórios B/C ainda são REST-only (skip no modo Lake).
+Lake (Athena) mapeia: clientes `0004`, reservas `0051`, cancelamentos `0052`, comandas
+`0002`, faturamento por profissional `0021`, top serviços `0032`, revenue `0036`/`0020`.
+Modo `auto`/`lake` usa Athena nos mapeados e cai no REST (se `AVEC_API_TOKEN`) nos demais;
+sem REST, P2/P3/estoque viram **warning** (não derrubam o cron).
 
-O Conectar grava `avec_api_token` no perfil **após ping de validação**. Esse token
-**não** alimenta o read-model do Hoje/Assistente/Clientes ainda (`dataPlane: unit-sync`).
+Hoje lê `salon_p1_daily` (0021) com fallback em `client_services` do sync.
+
+O Conectar valida Lake com ping Athena e grava só fingerprint (`lake:AKIA…` / `lake:unit`) —
+nunca o secret AWS. O token pessoal **não** alimenta o read-model (`dataPlane: unit-sync`).
 
 ## Superfície do produto
 
