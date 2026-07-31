@@ -24,6 +24,8 @@ Lake (Athena) mapeia: clientes `0004`, reservas `0051`, cancelamentos `0052`, co
 `0002`, faturamento por profissional `0021`, top serviços `0032`, revenue `0036`/`0020`.
 Modo `auto`/`lake` usa Athena nos mapeados e cai no REST (se `AVEC_API_TOKEN`) nos demais;
 sem REST, P2/P3/estoque viram **warning** (não derrubam o cron).
+No Lake, cada relatório = **1** query Athena (sem loop OFFSET); o full **pula** o catálogo
+`0004` (contatos vêm de 0051/0002) para caber no timeout de 300s da Vercel.
 
 Hoje lê `client_services` do sync **do dia** (0051/0002). `salon_p1_daily` (0021, janela ~30d)
 só entra se a leitura do dia falhar — não sobrescreve KPIs diários.
