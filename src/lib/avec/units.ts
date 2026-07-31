@@ -40,10 +40,14 @@ export function isAvecUnitConfigured(unit: AvecUnitEnv): boolean {
   if (unit.panel === 'brasil' && (process.env.AVEC_MOCK === '1' || process.env.AVEC_MOCK === 'true')) {
     return true
   }
-  return Boolean(
-    unit.avecApiToken?.trim() ||
-      (unit.avecLakeAccessKeyId?.trim() && unit.avecLakeSecretAccessKey?.trim())
+  const mode = (process.env.AVEC_DATA_SOURCE?.trim() || 'auto').toLowerCase()
+  const hasRest = Boolean(unit.avecApiToken?.trim())
+  const hasLake = Boolean(
+    unit.avecLakeAccessKeyId?.trim() && unit.avecLakeSecretAccessKey?.trim()
   )
+  if (mode === 'rest') return hasRest
+  if (mode === 'lake') return hasLake
+  return hasRest || hasLake
 }
 
 /**

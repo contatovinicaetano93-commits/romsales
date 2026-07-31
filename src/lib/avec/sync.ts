@@ -365,7 +365,18 @@ async function syncCancellations(
 
   const range = mode === 'fast' ? periodRange(0, 0) : periodRange(0, 7)
   const params = { ...range, site: avecSiteParam(), limit: 250 }
-  const result = await fetchAllAvecReport(reportId, params)
+  let result: Awaited<ReturnType<typeof fetchAllAvecReport>>
+  try {
+    result = await fetchAllAvecReport(reportId, params)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    // Lake ainda não mapeia 0052 — não derruba o sync inteiro.
+    if (msg.includes('ainda não mapeia')) {
+      stats.warnings.push(`Cancelamentos: ${msg}`)
+      return
+    }
+    throw e
+  }
   warnIfTruncated(stats, reportId, result)
   await snapshotReport(reportId, params, result.rows, stats, syncRunId)
 

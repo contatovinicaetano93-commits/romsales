@@ -53,12 +53,15 @@ export function getAvecBaseUrl() {
 
 export function isAvecConfigured() {
   if (isAvecMock()) return true
-  if (shouldUseAvecLake() && isAvecLakeConfigured()) return true
+  const mode = (process.env.AVEC_DATA_SOURCE?.trim() || 'auto').toLowerCase()
   const override = getUnitEnvOverride()
-  if (override) {
-    return Boolean(override.avecApiToken) || Boolean(override.avecLakeAccessKeyId)
-  }
-  return Boolean(process.env.AVEC_API_TOKEN) || isAvecLakeConfigured()
+  const hasRest = Boolean(
+    (override ? override.avecApiToken : process.env.AVEC_API_TOKEN)?.trim()
+  )
+  const hasLake = isAvecLakeConfigured()
+  if (mode === 'rest') return hasRest
+  if (mode === 'lake') return hasLake
+  return hasRest || hasLake
 }
 
 /** ID da unidade no Avec (quando configurado) — escopa o sync pra não misturar unidades. */
@@ -240,22 +243,9 @@ export async function fetchAllAvecReport(
   maxPages = getAvecSyncMaxPages()
 ): Promise<AvecReportFetchResult> {
   if (!isAvecMock() && shouldUseAvecLake()) {
-    try {
-      return await fetchAllAvecLakeReport(reportId, params, maxPages)
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      // Relatórios ainda sem SQL Lake (P1/P2/P3, cancelamentos etc.) — sync segue sem eles.
-      if (msg.includes('ainda não mapeia')) {
-        return {
-          rows: [],
-          truncated: false,
-          pagesFetched: 0,
-          maxPages,
-          limit: params.limit ?? AVEC_PAGE_LIMIT,
-        }
-      }
-      throw e
-    }
+    // Relatórios sem SQL Lake (P1/P2/P3 etc.) propagam erro — callers com
+    // partial-failure (syncP1Kpis) não sobrescrevem KPIs com arrays vazios.
+    return fetchAllAvecLakeReport(reportId, params, maxPages)
   }
 
   const limit = params.limit ?? AVEC_PAGE_LIMIT

@@ -101,11 +101,11 @@ export function isAvecLakeConfigured(): boolean {
   return getAvecLakeCredentials() != null
 }
 
-/** auto: Lake se credenciais Lake existirem; senão REST. */
+/** auto: Lake se credenciais Lake existirem; senão REST. lake: força Athena (erro claro se faltar credencial). */
 export function shouldUseAvecLake(): boolean {
   const mode = (process.env.AVEC_DATA_SOURCE?.trim() || 'auto').toLowerCase()
   if (mode === 'rest') return false
-  if (mode === 'lake') return isAvecLakeConfigured()
+  if (mode === 'lake') return true
   return isAvecLakeConfigured()
 }
 
@@ -134,8 +134,11 @@ function resolveDateBounds(params: AvecLakeReportParams): { inicio: string; fim:
 function resolveSalaoId(params: AvecLakeReportParams): string | null {
   const fromParam = params.site != null ? String(params.site).trim() : ''
   if (fromParam) return fromParam
+  // Mesmo contrato de getAvecUnitId: com override de unidade, NÃO cair no
+  // AVEC_UNIT_ID global (evita Iguatemi ler salao_id do Brasil).
   const override = getUnitEnvOverride()
-  return (override?.avecUnitId ?? process.env.AVEC_UNIT_ID)?.trim() || null
+  if (override) return override.avecUnitId?.trim() || null
+  return process.env.AVEC_UNIT_ID?.trim() || null
 }
 
 function createAthenaClient(creds: AvecLakeCredentials): AthenaClient {
@@ -290,13 +293,16 @@ LIMIT ${limit}
 
   if (reportId === '0002') {
     if (!bounds) throw new Error('Relatório 0002 (comandas) exige inicio/fim')
+    // data em dd/mm/yyyy (+ hora meio-dia) — ISO date-only vira UTC midnight e
+    // toSalonDateIso em America/Sao_Paulo cai no dia anterior no filtro "hoje".
     return `
 SELECT
   CAST(c.salao_cliente_id AS varchar) AS cliente_id,
   cl.nome AS cliente_nome,
   cl.celular,
   ci.item AS servico,
-  CAST(c.data AS varchar) AS data,
+  date_format(c.data, '%d/%m/%Y') AS data,
+  '12:00' AS hora,
   p.nome AS profissional,
   ci.valor,
   c.status

@@ -62,4 +62,16 @@ describe('shouldUseAvecLake', () => {
     }
     expect(shouldUseAvecLake()).toBe(false)
   })
+
+  it('lake força Athena mesmo sem credenciais (erro fica no fetch)', () => {
+    process.env = {
+      ...env,
+      AVEC_DATA_SOURCE: 'lake',
+      AVEC_LAKE_ACCESS_KEY_ID: '',
+      AVEC_LAKE_SECRET_ACCESS_KEY: '',
+    }
+    delete process.env.AVEC_LAKE_ACCESS_KEY_ID
+    delete process.env.AVEC_LAKE_SECRET_ACCESS_KEY
+    expect(shouldUseAvecLake()).toBe(true)
+  })
 })
