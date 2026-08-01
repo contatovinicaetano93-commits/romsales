@@ -66,43 +66,46 @@ function sendJson(res, code, obj) {
   res.end(b)
 }
 
-const server = https.createServer(
-  { cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) },
-  async (req, res) => {
-    if (req.method !== 'POST') return sendJson(res, 405, { message: 'method not allowed' })
-    let body = ''
-    for await (const chunk of req) body += chunk
-    let payload
-    try {
-      payload = JSON.parse(body || '{}')
-    } catch {
-      return sendJson(res, 400, { message: 'invalid json body' })
-    }
-    const isBatch = Array.isArray(payload.queries)
-    const client = await pool.connect()
-    try {
-      if (isBatch) {
-        await client.query('BEGIN')
-        const results = []
-        for (const q of payload.queries) results.push(await runQuery(client, q))
-        await client.query('COMMIT')
-        sendJson(res, 200, { results })
-      } else {
-        sendJson(res, 200, await runQuery(client, payload))
-      }
-    } catch (e) {
-      if (isBatch) {
-        try { await client.query('ROLLBACK') } catch { /* ignore */ }
-      }
-      const errObj = { message: e.message }
-      for (const f of ERROR_FIELDS) if (e[f] !== undefined) errObj[f] = e[f]
-      sendJson(res, 400, errObj)
-    } finally {
-      client.release()
-    }
-  },
-)
+const tlsOpts = { cert: fs.readFileSync(CERT), key: fs.readFileSync(KEY) }
 
-server.listen(PORT, () => {
-  console.log(`neon-http-proxy listening on https://localhost:${PORT}/sql -> ${DB}`)
-})
+async function handler(req, res) {
+  if (req.method !== 'POST') return sendJson(res, 405, { message: 'method not allowed' })
+  let body = ''
+  for await (const chunk of req) body += chunk
+  let payload
+  try {
+    payload = JSON.parse(body || '{}')
+  } catch {
+    return sendJson(res, 400, { message: 'invalid json body' })
+  }
+  const isBatch = Array.isArray(payload.queries)
+  let client
+  try {
+    client = await pool.connect()
+    if (isBatch) {
+      await client.query('BEGIN')
+      const results = []
+      for (const q of payload.queries) results.push(await runQuery(client, q))
+      await client.query('COMMIT')
+      sendJson(res, 200, { results })
+    } else {
+      sendJson(res, 200, await runQuery(client, payload))
+    }
+  } catch (e) {
+    if (client && isBatch) {
+      try { await client.query('ROLLBACK') } catch { /* ignore */ }
+    }
+    const errObj = { message: e.message }
+    for (const f of ERROR_FIELDS) if (e[f] !== undefined) errObj[f] = e[f]
+    sendJson(res, 400, errObj)
+  } finally {
+    if (client) client.release()
+  }
+}
+
+// Loopback only — this proxy forwards arbitrary SQL with local trust auth.
+for (const host of ['127.0.0.1', '::1']) {
+  https.createServer(tlsOpts, handler).listen(PORT, host, () => {
+    console.log(`neon-http-proxy listening on https://${host}:${PORT}/sql -> ${DB}`)
+  })
+}

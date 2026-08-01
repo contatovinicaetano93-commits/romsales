@@ -75,8 +75,18 @@ if [ ! -d "$REPO_ROOT/scripts/devdb/node_modules/pg" ]; then
   (cd "$REPO_ROOT/scripts/devdb" && npm install --silent)
 fi
 
+# Returns 0 only when the Neon HTTP proxy answers /sql with its JSON shape.
+proxy_ok() {
+  local body
+  body="$(curl -sk --max-time 2 \
+    -X POST "https://127.0.0.1:${PROXY_PORT}/sql" \
+    -H 'content-type: application/json' \
+    -d '{"query":"SELECT 1","params":[]}' 2>/dev/null)" || return 1
+  printf '%s' "$body" | grep -q '"rows"' && printf '%s' "$body" | grep -q '"fields"'
+}
+
 # --- Start proxy -------------------------------------------------------------
-if ! curl -sk --max-time 2 https://localhost:"$PROXY_PORT"/sql -X POST -d '{}' >/dev/null 2>&1; then
+if ! proxy_ok; then
   log "Starting Neon HTTP proxy on https://localhost:$PROXY_PORT (needs sudo for :443)"
   NODE_BIN="$(command -v node)"
   sudo PROXY_PORT="$PROXY_PORT" \
@@ -85,6 +95,13 @@ if ! curl -sk --max-time 2 https://localhost:"$PROXY_PORT"/sql -X POST -d '{}' >
        nohup "$NODE_BIN" "$REPO_ROOT/scripts/devdb/neon-http-proxy.mjs" \
        >"$DEVDIR/proxy.log" 2>&1 &
   sleep 2
+  if ! proxy_ok; then
+    log "ERROR: Neon HTTP proxy failed to start. See $DEVDIR/proxy.log"
+    if [ -f "$DEVDIR/proxy.log" ]; then
+      tail -n 20 "$DEVDIR/proxy.log" >&2 || true
+    fi
+    exit 1
+  fi
 fi
 
 log "Ready. Local dev database is up."
