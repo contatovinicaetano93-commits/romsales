@@ -1,0 +1,10 @@
+{
+  "name": "romsales-devdb-proxy",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local-only Neon HTTP proxy so @neondatabase/serverless can talk to a local Postgres during development. Not used in production.",
+  "type": "module",
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
