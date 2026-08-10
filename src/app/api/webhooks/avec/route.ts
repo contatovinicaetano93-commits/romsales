@@ -5,10 +5,10 @@ import { ingestAvecWebhook } from '@/lib/avec/webhook-ingest'
 import { scheduleAvecWebhookSideEffects } from '@/lib/avec/sync-trigger'
 import { isAuthorized } from '@/lib/auth'
 import { resolveRequestHost } from '@/lib/deployment'
+import { isRomsalesProOnly } from '@/lib/pro/product-boundary'
 
 /**
  * Webhook Avec — tempo real (push).
- * URL: https://rom-club.vercel.app/api/webhooks/avec
  * Header: x-avec-secret: <AVEC_WEBHOOK_SECRET>
  * (também aceita Authorization: Bearer … ou x-webhook-secret)
  */
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const secretOk = verifyAvecWebhook(req).ok
-    const sessionOk = await isAuthorized(req)
+    const sessionOk = !isRomsalesProOnly() && (await isAuthorized(req))
     if (!secretOk && !sessionOk) return err('Não autorizado', 401)
 
     const configured = Boolean(process.env.AVEC_WEBHOOK_SECRET?.trim())

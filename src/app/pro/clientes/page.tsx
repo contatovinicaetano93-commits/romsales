@@ -140,20 +140,35 @@ export default function ProClientesPage() {
           </p>
         ) : (
           <ul className="divide-y divide-border">
-            {filtered.map((c) => (
-              <li
-                key={c.id ?? c.name}
-                className="grid gap-1 py-3 text-sm sm:grid-cols-5 sm:items-center sm:gap-3"
-              >
-                <span className="font-medium">{c.name}</span>
-                <span className="text-muted">{displayPhone(c.phone)}</span>
-                <span className="text-muted">{c.service?.trim() || '—'}</span>
-                <span className="text-muted">
-                  {c.lastVisitAt ? formatVisitDate(c.lastVisitAt) : '—'}
-                </span>
-                <span className="text-muted">{formatCurrency(c.lastPrice)}</span>
-              </li>
-            ))}
+            {filtered.map((c) => {
+              const row = (
+                <>
+                  <span className="font-medium text-foreground">{c.name}</span>
+                  <span className="text-muted">{displayPhone(c.phone)}</span>
+                  <span className="text-muted">{c.service?.trim() || '—'}</span>
+                  <span className="text-muted">
+                    {c.lastVisitAt ? formatVisitDate(c.lastVisitAt) : '—'}
+                  </span>
+                  <span className="text-muted">{formatCurrency(c.lastPrice)}</span>
+                </>
+              )
+              return (
+                <li key={c.id ?? c.name}>
+                  {c.id ? (
+                    <Link
+                      href={`/pro/clientes/${c.id}`}
+                      className="grid gap-1 py-3 text-sm sm:grid-cols-5 sm:items-center sm:gap-3 hover:bg-border/30"
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <div className="grid gap-1 py-3 text-sm sm:grid-cols-5 sm:items-center sm:gap-3">
+                      {row}
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

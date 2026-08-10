@@ -96,9 +96,10 @@ as envs da unidade já estão na Vercel). O secret **não** é persistido no per
 Deploy dedicado Iguatemi (`ROM_PANEL=iguatemi`): use `DATABASE_URL` + `AVEC_UNIT_ID=99801` (+ Lake keys).
 Deploy multi-unidade no mesmo projeto: aí sim `AVEC_UNIT_ID_IGUATEMI` + `DATABASE_URL_IGUATEMI`.
 
-**Conectar / conferência:** o nome precisa bater no portfólio ROM Central (`professionals.brasil.ts` /
-`professionals.iguatemi.ts`). O roster Iguatemi ainda está **vazio** — Conectar IG falha até preencher
-como no Brasil.
+**Conectar / conferência:** Brasil usa o portfólio ROM Central (`professionals.brasil.ts`).
+Iguatemi: roster ainda vazio → Conectar confere contra nomes já sincronizados (`client_services`)
+com o mesmo `match-pro`. Rode o cron full antes do primeiro Conectar IG, ou preencha
+`professionals.iguatemi.ts`.
 
 Cron: fast `*/5`; full a cada 6h. Se o full estourar 300s, `AVEC_SYNC_DOSSIER=0` pula o dossiê.
 

@@ -7,6 +7,7 @@ import { verifyProAvecToken } from '@/lib/pro/avec-verify'
 import { lakeTokenForStorage } from '@/lib/avec/lake'
 import { encryptSecret } from '@/lib/pro/secrets'
 import {
+  conferAgainstNames,
   conferProfessional,
   normalizeProKey,
   rosterForPanel,
@@ -390,15 +391,32 @@ export async function connectAgenda(
       ? profilePanelRows[0]!.panel
       : getRomPanelId()
 
-  // Conferência ROM Central — mesmo match-pro do relatório de diretoria.
+  // Conferência ROM Central (roster). Se roster vazio (ex.: Iguatemi),
+  // mesmo match-pro contra nomes já sincronizados da unidade.
   const roster = rosterForPanel(panel)
-  if (roster.length === 0) {
-    throw new Error(
-      `Portfólio de profissionais da unidade ${panel} ainda não está cadastrado — avise a operação`,
-    )
-  }
-  const conferred = conferProfessional(rawName, panel)
-  if (!conferred) {
+  let conferred = conferProfessional(rawName, panel)
+  if (!conferred && roster.length === 0) {
+    const unitSql = getSql(isValidRomPanelId(panel) ? panel : undefined)
+    const syncNames = (await unitSql`
+      select distinct professional_name as name
+      from client_services
+      where active = true
+        and professional_name is not null
+        and trim(professional_name) <> ''
+    `) as { name: string }[]
+    const names = syncNames.map((r) => r.name)
+    if (names.length === 0) {
+      throw new Error(
+        `Portfólio ${panel} vazio e sync ainda sem profissionais — rode o cron Avec (full) ou cadastre o roster da unidade`,
+      )
+    }
+    conferred = conferAgainstNames(rawName, names)
+    if (!conferred) {
+      throw new Error(
+        'Nome não conferido nos profissionais já sincronizados desta unidade. Use o nome como na Avec (completo se houver homônimo).',
+      )
+    }
+  } else if (!conferred) {
     throw new Error(
       'Nome não conferido no portfólio desta unidade (use o nome como no ROM Central — ex.: Romeu Felipe). Se for só o primeiro nome e houver homônimos, digite o nome completo.',
     )

@@ -1,5 +1,6 @@
 import { askAI, isAiConfigured } from '@/lib/ai/client'
-import { getProDaySummary } from '@/lib/pro/data-plane'
+import { getProDaySummary, type ProClient } from '@/lib/pro/data-plane'
+import { getProClientDossier } from '@/lib/pro/dossier'
 import { getRomsalesProduct } from '@/lib/pro/product'
 import { isValidRomPanelId } from '@/lib/brand'
 import type { ProUserRow } from '@/lib/pro/store'
@@ -20,10 +21,11 @@ export async function buildProAssistantContext(user: ProUserRow) {
   let attended = 0
   let revenue = 0
   let note = 'Agenda ainda não conectada'
-  let clients: { name: string }[] = []
+  let clients: ProClient[] = []
   let dailyGoal: number | null = user.daily_goal != null ? Number(user.daily_goal) : null
   let weeklyGoal: number | null = user.weekly_goal != null ? Number(user.weekly_goal) : null
   let goalPct: number | null = null
+  let dossierLines: string[] = []
 
   if (connected && user.professional_name) {
     const summary = await getProDaySummary(
@@ -40,6 +42,26 @@ export async function buildProAssistantContext(user: ProUserRow) {
     weeklyGoal = summary.weeklyGoal
     goalPct = summary.goalPct
     day = summary.day
+
+    // Dossiê resumido dos 3 primeiros da carteira (cadeira / briefing).
+    const top = clients.filter((c) => c.id).slice(0, 3)
+    for (const c of top) {
+      const d = await getProClientDossier(c.id!, user.professional_name, user.panel)
+      if (!d) continue
+      const last = d.lastVisit
+        ? `última ${d.lastVisit.serviceName} em ${d.lastVisit.doneAt.slice(0, 10)}`
+        : 'sem visita sync'
+      const products = d.recentProducts
+        .slice(0, 3)
+        .map((p) => p.productName)
+        .join(', ')
+      dossierLines.push(
+        `• ${d.name ?? c.name}: ${last}` +
+          (d.preferredHairstylist ? `; cabelo ${d.preferredHairstylist}` : '') +
+          (d.preferredManicurist ? `; unha ${d.preferredManicurist}` : '') +
+          (products ? `; produtos ${products}` : ''),
+      )
+    }
   } else if (dailyGoal && dailyGoal > 0) {
     goalPct = Math.round((revenue / dailyGoal) * 100)
   }
@@ -60,6 +82,7 @@ export async function buildProAssistantContext(user: ProUserRow) {
     `Telegram: ${connectors.telegram.linked ? 'vinculado' : 'não'}`,
     `WhatsApp: ${connectors.whatsapp.credentialsSaved ? 'credenciais salvas; mensagens não ativas' : 'em breve; mensagens não ativas'}`,
     `Nota: ${note}`,
+    ...(dossierLines.length > 0 ? ['Dossiês (topo da carteira):', ...dossierLines] : []),
   ]
 
   return {
@@ -74,8 +97,10 @@ export async function buildProAssistantContext(user: ProUserRow) {
     weeklyGoal,
     goalPct,
     clients,
+    dossierLines,
     professionalName: user.professional_name,
     fullName: user.full_name,
+    panel: user.panel,
   }
 }
 
@@ -156,14 +181,23 @@ function localAnswer(
     return formatMorningBriefing(ctx)
   }
 
-  if (/cliente|carteira|lead|reativa/.test(q)) {
+  if (/cliente|carteira|lead|reativa|dossi[eê]/.test(q)) {
     if (!ctx.connected) {
       return 'Sem conexão Avec ainda não tenho sua carteira. Conecte a agenda e pergunte de novo.'
     }
     if (ctx.clients.length === 0) {
       return 'Carteira vazia por enquanto. Depois do sync Avec, clientes com preferência pelo seu nome aparecem aqui.'
     }
-    return `Clientes recentes da sua carteira:\n${ctx.clients.map((c) => `• ${c.name}`).join('\n')}`
+    const named = ctx.clients.find((c) => c.name.toLowerCase() && q.includes(c.name.toLowerCase()))
+    if (named && ctx.dossierLines.length > 0) {
+      const hit = ctx.dossierLines.find((l) => l.toLowerCase().includes(named.name.toLowerCase()))
+      if (hit) return `Dossiê:\n${hit}\n\nAbra /pro/clientes para o detalhe completo.`
+    }
+    const body =
+      ctx.dossierLines.length > 0
+        ? ctx.dossierLines.join('\n')
+        : ctx.clients.map((c) => `• ${c.name}`).join('\n')
+    return `Carteira / dossiês:\n${body}`
   }
 
   return [

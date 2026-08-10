@@ -1,6 +1,8 @@
 /**
  * Conferência de profissional — mesmo método do ROM Central (relatório diretoria).
  * Roster BR/IG + matchDirectorProfessional (id → nome normalizado → prefixo único).
+ * Se o roster estiver vazio (ex.: Iguatemi ainda sem portfólio), confere contra
+ * nomes já presentes no sync da unidade (mesma lógica de match).
  */
 
 import { getRomPanelId, isValidRomPanelId, type RomPanelId } from '@/lib/brand'
@@ -15,6 +17,27 @@ export function rosterForPanel(panel?: string | null): DirectorProfessional[] {
   return listDirectorProfessionals(true, p)
 }
 
+/** Monta pseudo-roster a partir de nomes Avec do sync (fallback IG). */
+export function namesToRoster(names: string[]): DirectorProfessional[] {
+  const seen = new Set<string>()
+  const out: DirectorProfessional[] = []
+  for (const raw of names) {
+    const name = raw.trim()
+    if (!name) continue
+    const key = normalizeProKey(name)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push({
+      id: `sync-${key.replace(/\s+/g, '-')}`,
+      name,
+      avec_pro_id: null,
+      role: 'other',
+      active: true,
+    })
+  }
+  return out
+}
+
 /**
  * Confere nome digitado / Avec contra o portfólio da unidade.
  * Retorna o profissional canônico do roster ou null (ambíguo / fora da lista).
@@ -26,6 +49,14 @@ export function conferProfessional(
   const roster = rosterForPanel(panel)
   if (roster.length === 0) return null
   return matchDirectorProfessional(inputName, roster)
+}
+
+/** Conferência contra lista arbitrária (nomes do sync) com o mesmo match-pro. */
+export function conferAgainstNames(
+  inputName: string,
+  names: string[],
+): DirectorProfessional | null {
+  return matchDirectorProfessional(inputName, namesToRoster(names))
 }
 
 /**

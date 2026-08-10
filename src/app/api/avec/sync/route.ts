@@ -8,13 +8,15 @@ import { isCronAuthorized } from '@/lib/cron-auth'
 import { isProduction } from '@/lib/env'
 import { getDeploymentContext } from '@/lib/deployment'
 import { isSyncLockBusyError } from '@/lib/sync-lock'
+import { isRomsalesProOnly } from '@/lib/pro/product-boundary'
 
 /** Sync Avec pode demorar (vários relatórios). */
 export const maxDuration = 300
 
 async function authorize(req: NextRequest) {
   if (isCronAuthorized(req)) return true
-  if (await isAuthorized(req)) return true
+  // Pro-only: só cron — sem sessão de equipe.
+  if (!isRomsalesProOnly() && (await isAuthorized(req))) return true
   if (!process.env.CRON_SECRET?.trim() && !isProduction()) return true
   return false
 }

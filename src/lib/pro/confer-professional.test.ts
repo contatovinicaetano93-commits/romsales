@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   conferProfessional,
+  conferAgainstNames,
   avecNameBelongsToConnectedPro,
   collectMatchedAvecNames,
 } from '@/lib/pro/confer-professional'
@@ -21,8 +22,19 @@ describe('conferProfessional — roster Brasil (ROM Central)', () => {
     expect(conferProfessional('Lucas Sales', 'brasil')?.name).toBe('Lucas Sales')
   })
 
-  it('Iguatemi vazio → null', () => {
+  it('Iguatemi vazio → null no roster (fallback é sync)', () => {
     expect(conferProfessional('Qualquer', 'iguatemi')).toBeNull()
+  })
+})
+
+describe('conferAgainstNames — fallback sync', () => {
+  it('casa nome Avec com a mesma lógica de match-pro', () => {
+    const hit = conferAgainstNames('Ana Clara', ['Ana Clara', 'Bruno Silva'])
+    expect(hit?.name).toBe('Ana Clara')
+  })
+
+  it('não adivinha homônimo', () => {
+    expect(conferAgainstNames('Ana', ['Ana Clara', 'Ana Paula'])).toBeNull()
   })
 })
 

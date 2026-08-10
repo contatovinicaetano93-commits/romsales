@@ -55,15 +55,14 @@ synca aquela unidade.
 
 ## Gaps conhecidos
 
-1. **Fork com arquivos de equipe no tree** — ainda compilam; boundary no middleware (não remoção física).
+1. **Fork com arquivos de equipe no tree** — ainda compilam; boundary no middleware (não remoção física). Sync Avec no pro-only aceita só `CRON_SECRET`.
 2. **Avec pessoal ≠ pipeline de dados** — token no Conectar valida/salva criptografado; Hoje usa sync da unidade. `decryptSecret` ainda sem consumer de sync.
 3. **WhatsApp Cloud** — só `credentials-saved`; `linked`/`messagingReady` ficam false até haver adapter.
 4. **Dual auth no código** — `rom_session` (equipe) ainda existe, mas APIs de equipe retornam 404.
 5. **Ações** — página placeholder; filtros de clientes são shells.
 6. **Deploy** — sem `AVEC_*` o data-plane fica correto e vazio.
-7. **Roster Iguatemi vazio** — Conectar IG bloqueado até preencher `professionals.iguatemi.ts`.
-8. **UI dossiê / Assistente** — API pronta; tela de detalhe e contexto IA ainda não consomem o dossiê.
-9. **Neon quota 402** — ops: upgrade ou banco novo (bloqueia login/sync).
+7. **Roster Iguatemi** — portfólio vazio; Conectar cai no match-pro contra nomes do sync até preencher `professionals.iguatemi.ts`.
+8. **Neon quota 402** — ops: upgrade ou banco novo; app devolve 503 com mensagem clara no login.
 
 ## Fechado (ondas paralelas)
 

@@ -342,8 +342,8 @@ export default function ProConectarPage() {
             />
           </label>
           <p className="mt-1 text-xs text-muted">
-            Mesma conferência do ROM Central BR/IG: o nome precisa bater no portfólio da unidade
-            (acentos/case ok; primeiro nome só se for único).
+            Mesma conferência do ROM Central: portfólio da unidade (Brasil). Se o portfólio estiver
+            vazio (Iguatemi), confere contra nomes já no sync Avec — rode o cron full antes.
           </p>
 
           <label className="mt-3 block text-[0.65rem] uppercase tracking-[0.18em] text-muted">

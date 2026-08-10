@@ -77,8 +77,8 @@ e grava o nome canônico. Token pessoal não puxa dossiê sozinho.
 |------|--------|
 | Lista `getProClients` | Pronto |
 | API `GET /api/pro/clientes/[id]` + `getProClientDossier` | Pronto (escopo carteira) |
-| UI detalhe do cliente | Ainda não |
-| Assistente / Telegram com dossiê | Ainda não (só resumo do dia) |
+| UI detalhe `/pro/clientes/[id]` | Pronto |
+| Assistente / Telegram com dossiê | Resumo dos top 3 + perguntas de carteira |
 
 ## Envs
 
