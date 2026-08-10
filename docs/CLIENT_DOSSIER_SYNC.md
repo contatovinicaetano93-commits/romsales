@@ -35,7 +35,8 @@ Docs oficiais: [API Avec](https://documenter.getpostman.com/view/12527228/2sA2xm
 └─────────────────────────────────────────────────────────────┘
          │
          ▼
-   Neon (unit-sync)  →  data-plane pro  →  Hoje / Clientes / Assistente
+   Neon (unit-sync)  →  data-plane pro  →  Hoje / lista Clientes
+                                         →  API dossiê (UI detalhe ainda não)
 ```
 
 **Decisão A (atual):** unit-sync continua fonte da verdade. Conectar
@@ -72,9 +73,12 @@ e grava o nome canônico. Token pessoal não puxa dossiê sozinho.
 
 ## Read-model pro
 
-- Lista: `getProClients` (último serviço do pro).
-- Detalhe (próximo): `getProClientDossier(contactId)` → visitas + produtos + prefs + anamnese.
-- Assistente / Telegram: alimentar com o mesmo dossiê (`context-builder`).
+| Peça | Estado |
+|------|--------|
+| Lista `getProClients` | Pronto |
+| API `GET /api/pro/clientes/[id]` + `getProClientDossier` | Pronto (escopo carteira) |
+| UI detalhe do cliente | Ainda não |
+| Assistente / Telegram com dossiê | Ainda não (só resumo do dia) |
 
 ## Envs
 
@@ -83,4 +87,5 @@ e grava o nome canônico. Token pessoal não puxa dossiê sozinho.
 | `AVEC_DATA_SOURCE=lake\|auto\|rest` | Hybrid |
 | `AVEC_LAKE_*` + `AVEC_UNIT_ID` | Histórico serviços/produtos sem token REST |
 | `AVEC_API_TOKEN` | Anamnese 0115/0116 + fallback REST |
+| `AVEC_SYNC_DOSSIER=0` | Pula dossiê no full (timeout) |
 | `CRON_SECRET` | `/api/avec/sync?mode=full` |

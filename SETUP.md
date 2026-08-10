@@ -47,7 +47,7 @@ Gaps estruturais conhecidos (detalhe em `ARCHITECTURE.md`):
 
 ## 1) Neon
 
-1. Crie um projeto Neon novo (ex.: `romsales-brasil`)
+1. Crie um projeto Neon novo (ex.: `romsales-brasil`) — **não compartilhe** o Neon do painel equipe
 2. Copie `DATABASE_URL`
 3. Rode migrations:
 
@@ -55,7 +55,11 @@ Gaps estruturais conhecidos (detalhe em `ARCHITECTURE.md`):
 DATABASE_URL=... ROM_PANEL=brasil npm run db:migrate
 ```
 
-A migration `019_romsales_pro` cria `romsales_pro_users` + `romsales_pro_profiles`.
+Migrations relevantes ao pro: `019_romsales_pro` (contas), `025_client_dossier` (visitas/produtos/anamnese),
+`026_pro_name_key` (chave de conferência do Conectar).
+
+Se o login falhar com **HTTP 402 / data transfer quota**, o Neon estourou a cota — upgrade do plano
+ou projeto Neon novo + trocar `DATABASE_URL` na Vercel. Sem isso, login/sync/Conectar não sobem.
 
 ## 2) Vercel
 
@@ -89,8 +93,14 @@ Sem token REST, use **AvecLake**: `AVEC_LAKE_*` + `AVEC_UNIT_ID` (salao_id numé
 Iguatemi `99801`). No Conectar o profissional cola `AKIA…|secret` (ou `lake` / só a Access Key se
 as envs da unidade já estão na Vercel). O secret **não** é persistido no perfil — só validação Athena.
 
-Iguatemi: defina `AVEC_UNIT_ID_IGUATEMI` (+ `DATABASE_URL_IGUATEMI`) para herdar as Lake keys do Brasil;
-sem unit id, o cron Iguatemi não usa Lake.
+Deploy dedicado Iguatemi (`ROM_PANEL=iguatemi`): use `DATABASE_URL` + `AVEC_UNIT_ID=99801` (+ Lake keys).
+Deploy multi-unidade no mesmo projeto: aí sim `AVEC_UNIT_ID_IGUATEMI` + `DATABASE_URL_IGUATEMI`.
+
+**Conectar / conferência:** o nome precisa bater no portfólio ROM Central (`professionals.brasil.ts` /
+`professionals.iguatemi.ts`). O roster Iguatemi ainda está **vazio** — Conectar IG falha até preencher
+como no Brasil.
+
+Cron: fast `*/5`; full a cada 6h. Se o full estourar 300s, `AVEC_SYNC_DOSSIER=0` pula o dossiê.
 
 `ROMSALES_CONNECTOR_SECRET` é obrigatório em produção. Não há migration de schema:
 `avec_api_token` e `wa_access_token` continuam `text`, e o ciphertext `v1:<iv>:<ciphertext>:<tag>` cabe nas colunas atuais.
