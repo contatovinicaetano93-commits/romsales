@@ -40,7 +40,13 @@ export interface ProBotResult {
 }
 
 function proBotToken() {
-  return process.env.TELEGRAM_PRO_BOT_TOKEN?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim()
+  const pro = process.env.TELEGRAM_PRO_BOT_TOKEN?.trim()
+  if (pro) return pro
+  // Em produção não cai no bot da equipe — evita tráfego pro no @staff.
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    return undefined
+  }
+  return process.env.TELEGRAM_BOT_TOKEN?.trim()
 }
 
 export function getProBotUsername() {

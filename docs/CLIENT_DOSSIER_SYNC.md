@@ -38,8 +38,9 @@ Docs oficiais: [API Avec](https://documenter.getpostman.com/view/12527228/2sA2xm
    Neon (unit-sync)  →  data-plane pro  →  Hoje / Clientes / Assistente
 ```
 
-**Decisão A (atual):** unit-sync continua fonte da verdade. Conectar só
-amarra o `professional_name`. Token pessoal não puxa dossiê sozinho.
+**Decisão A (atual):** unit-sync continua fonte da verdade. Conectar
+**confere** o nome com o portfólio ROM Central (`match-pro` + roster BR/IG)
+e grava o nome canônico. Token pessoal não puxa dossiê sozinho.
 
 ## API direta vs caminhos alternativos
 

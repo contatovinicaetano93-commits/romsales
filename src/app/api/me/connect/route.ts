@@ -89,11 +89,13 @@ export async function POST(req: NextRequest) {
     const apiToken = typeof body?.apiToken === 'string' ? body.apiToken : ''
     const unitId = typeof body?.unitId === 'string' ? body.unitId : ''
 
+    const existing = await getProUserById(auth.session.userId)
     await connectAgenda(auth.session.userId, {
       professionalName,
       source,
       apiToken,
       unitId,
+      panel: existing?.panel,
     })
 
     const user = await getProUserById(auth.session.userId)

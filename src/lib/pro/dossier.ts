@@ -1,7 +1,7 @@
 import { getSql } from '@/lib/db'
 import { isValidRomPanelId } from '@/lib/brand'
 import { Observability } from '@/lib/observability'
-import { normalizeProName } from '@/lib/pro/data-plane'
+import { collectMatchedAvecNames } from '@/lib/pro/confer-professional'
 
 export interface ProClientVisit {
   serviceName: string
@@ -45,7 +45,6 @@ export async function getProClientDossier(
   const sql = getSql(isValidRomPanelId(panel) ? panel : undefined)
   const pro = professionalName.trim()
   if (!pro) return null
-  const proNorm = normalizeProName(pro)
 
   try {
     const nameRows = (await sql`
@@ -54,9 +53,11 @@ export async function getProClientDossier(
       where active = true
         and professional_name is not null
     `) as { professional_name: string | null }[]
-    const matchedNames = nameRows
-      .map((r) => r.professional_name?.trim() || '')
-      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    const matchedNames = collectMatchedAvecNames(
+      nameRows.map((r) => r.professional_name?.trim() || ''),
+      pro,
+      panel,
+    )
     if (matchedNames.length === 0) return null
 
     const contacts = (await sql`

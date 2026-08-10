@@ -1,4 +1,4 @@
-import type { RomPanelId } from '@/lib/brand'
+import { getRomPanelId, isMultiUnitDeploy, type RomPanelId } from '@/lib/brand'
 import { runWithUnitEnv, type UnitRuntimeEnv } from '@/lib/unit-context'
 
 /**
@@ -6,14 +6,18 @@ import { runWithUnitEnv, type UnitRuntimeEnv } from '@/lib/unit-context'
  * só que aqui o sync roda dentro de UM deploy só, alternando o contexto por iteração.
  *
  * Brasil usa as variáveis originais (sem sufixo).
- * Iguatemi usa sufixo `_IGUATEMI`. Lake keys só herdadas se AVEC_UNIT_ID_IGUATEMI existir
- * (evita sync Iguatemi acidental só porque o Brasil tem AVEC_LAKE_*).
+ * Iguatemi usa sufixo `_IGUATEMI`, exceto deploy dedicado (`ROM_PANEL=iguatemi`),
+ * que reutiliza `DATABASE_URL` / `AVEC_UNIT_ID` no slot iguatemi.
+ * Lake keys só herdadas se a unidade Iguatemi estiver explícita (ou for deploy IG).
  */
 export type AvecUnitEnv = UnitRuntimeEnv
 
 export function getAvecUnits(): AvecUnitEnv[] {
   const iguatemiUnitId = process.env.AVEC_UNIT_ID_IGUATEMI?.trim()
-  return [
+  const singleIguatemi = !isMultiUnitDeploy() && getRomPanelId() === 'iguatemi'
+  const igInheritsLake = Boolean(iguatemiUnitId) || singleIguatemi
+
+  const all: AvecUnitEnv[] = [
     {
       panel: 'brasil',
       databaseUrl: process.env.DATABASE_URL,
@@ -25,19 +29,29 @@ export function getAvecUnits(): AvecUnitEnv[] {
     },
     {
       panel: 'iguatemi',
-      databaseUrl: process.env.DATABASE_URL_IGUATEMI,
-      avecApiToken: process.env.AVEC_API_TOKEN_IGUATEMI,
-      avecUnitId: process.env.AVEC_UNIT_ID_IGUATEMI,
+      databaseUrl:
+        process.env.DATABASE_URL_IGUATEMI || (singleIguatemi ? process.env.DATABASE_URL : undefined),
+      avecApiToken:
+        process.env.AVEC_API_TOKEN_IGUATEMI ||
+        (singleIguatemi ? process.env.AVEC_API_TOKEN : undefined),
+      avecUnitId:
+        process.env.AVEC_UNIT_ID_IGUATEMI || (singleIguatemi ? process.env.AVEC_UNIT_ID : undefined),
       avecBaseUrl: process.env.AVEC_API_URL_IGUATEMI || process.env.AVEC_API_URL,
-      // Só reutiliza Lake keys do Brasil se a unidade Iguatemi estiver explícita.
-      avecLakeAccessKeyId: iguatemiUnitId
+      avecLakeAccessKeyId: igInheritsLake
         ? process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI || process.env.AVEC_LAKE_ACCESS_KEY_ID
         : process.env.AVEC_LAKE_ACCESS_KEY_ID_IGUATEMI,
-      avecLakeSecretAccessKey: iguatemiUnitId
+      avecLakeSecretAccessKey: igInheritsLake
         ? process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI || process.env.AVEC_LAKE_SECRET_ACCESS_KEY
         : process.env.AVEC_LAKE_SECRET_ACCESS_KEY_IGUATEMI,
     },
   ]
+
+  // Deploy single-unit (ROM_PANEL fixo): só a unidade do painel — evita sync cruzado.
+  if (!isMultiUnitDeploy()) {
+    const panel = getRomPanelId()
+    return all.filter((u) => u.panel === panel)
+  }
+  return all
 }
 
 export function isAvecUnitConfigured(unit: AvecUnitEnv): boolean {

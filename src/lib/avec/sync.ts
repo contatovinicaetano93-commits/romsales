@@ -498,11 +498,18 @@ async function runAvecSyncUnlocked(mode: AvecSyncMode): Promise<AvecSyncRun> {
     await syncRevenue(stats, syncRunId)
     await syncCancellations(stats, mode, syncRunId)
     if (mode === 'full') {
-      // Dossiê antes dos KPIs — prioridade pro (história do cliente na cadeira).
-      try {
-        await syncClientDossier(stats, syncRunId)
-      } catch (e) {
-        stats.errors.push(`Dossiê: ${e instanceof Error ? e.message : String(e)}`)
+      // Dossiê: desligável (AVEC_SYNC_DOSSIER=0) se o full estourar 300s.
+      const dossierOff = ['0', 'false', 'off', 'no'].includes(
+        (process.env.AVEC_SYNC_DOSSIER ?? '1').trim().toLowerCase(),
+      )
+      if (dossierOff) {
+        stats.warnings.push('Dossiê pulado (AVEC_SYNC_DOSSIER=0)')
+      } else {
+        try {
+          await syncClientDossier(stats, syncRunId)
+        } catch (e) {
+          stats.errors.push(`Dossiê: ${e instanceof Error ? e.message : String(e)}`)
+        }
       }
       for (const [label, fn] of [
         ['P1', () => syncP1Kpis(stats, syncRunId)],

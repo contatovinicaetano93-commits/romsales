@@ -36,8 +36,11 @@ Sync full em camadas: (1) fast dia → `client_services` + `client_visits`; (2) 
 Hoje lê `client_services` do sync **do dia** (0051/0002). `salon_p1_daily` (0021, janela ~30d)
 só entra se a leitura do dia falhar — não sobrescreve KPIs diários.
 
-O Conectar valida Lake com ping Athena e grava só fingerprint (`lake:AKIA…` / `lake:unit`) —
-nunca o secret AWS. O token pessoal **não** alimenta o read-model (`dataPlane: unit-sync`).
+O Conectar **confere** o nome no portfólio ROM Central (`matchDirectorProfessional` +
+roster BR/IG), grava o canônico + `professional_name_key`, valida Lake com ping Athena e
+persiste só fingerprint (`lake:AKIA…` / `lake:unit`) — nunca o secret AWS. O token pessoal
+**não** alimenta o read-model (`dataPlane: unit-sync`). Deploy com `ROM_PANEL` fixo só
+synca aquela unidade.
 
 ## Superfície do produto
 

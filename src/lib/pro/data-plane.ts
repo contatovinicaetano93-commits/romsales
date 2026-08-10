@@ -2,6 +2,11 @@ import { getSql } from '@/lib/db'
 import { todayIso } from '@/lib/salon/format'
 import { isValidRomPanelId, type RomPanelId } from '@/lib/brand'
 import { Observability } from '@/lib/observability'
+import {
+  avecNameBelongsToConnectedPro,
+  collectMatchedAvecNames,
+  normalizeProKey,
+} from '@/lib/pro/confer-professional'
 
 // Future mode: 'personal-avec' once personal tokens feed a dedicated read-model.
 export type ProDataPlaneMode = 'unit-sync'
@@ -43,14 +48,12 @@ export function getProDataPlaneMode(): ProDataPlaneMode {
     : 'unit-sync'
 }
 
-/** Compara nomes de agenda ignorando case/acentos/espaços extras. */
+/**
+ * Compara nomes de agenda — alinhado à chave de conferência do ROM Central
+ * (`normalizeProKey` do relatório de diretoria).
+ */
 export function normalizeProName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
+  return normalizeProKey(name)
 }
 
 export async function getProClients(
@@ -64,18 +67,15 @@ export async function getProClients(
   const limit = Math.min(Math.max(opts?.limit ?? 12, 1), 200)
 
   try {
-    const proNorm = normalizeProName(pro)
-    // Resolve accent/case variants first, then scope the client query by those
-    // names before limit — otherwise a global top-N can exclude this pro's clients.
+    // Conferência roster: variantes Avec que batem no profissional conectado.
     const nameRows = (await sql`
       select distinct professional_name
       from client_services
       where active = true
         and professional_name is not null
     `) as { professional_name: string | null }[]
-    const matchedNames = nameRows
-      .map((r) => r.professional_name?.trim() || '')
-      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    const avecNames = nameRows.map((r) => r.professional_name?.trim() || '').filter(Boolean)
+    const matchedNames = collectMatchedAvecNames(avecNames, pro, panel)
     if (matchedNames.length === 0) return clients
 
     // Um contato → linha do serviço mais recente deste pro (prioriza last_done_at).
@@ -141,10 +141,8 @@ async function dayStatsFromClientServices(
   sql: ReturnType<typeof getSql>,
   pro: string,
   day: string,
+  panel?: string,
 ): Promise<{ appointments: number; attended: number; revenue: number }> {
-  const proNorm = normalizeProName(pro)
-
-  // Busca o dia e filtra no JS (acentos/case) — lower() SQL não normaliza NFKD.
   const apptRows = (await sql`
     select professional_name
     from client_services
@@ -161,11 +159,15 @@ async function dayStatsFromClientServices(
       and (last_done_at at time zone 'America/Sao_Paulo')::date = ${day}::date
   `) as { professional_name: string | null; last_price: number | null }[]
 
-  const appointments = apptRows.filter((r) => normalizeProName(r.professional_name ?? '') === proNorm)
-    .length
-  const mineDone = doneRows.filter((r) => normalizeProName(r.professional_name ?? '') === proNorm)
-  const attended = mineDone.length
-  const revenue = mineDone.reduce((sum, r) => sum + (Number(r.last_price) || 0), 0)
+  const dayAvecNames = [
+    ...apptRows.map((r) => r.professional_name ?? ''),
+    ...doneRows.map((r) => r.professional_name ?? ''),
+  ]
+  const matchedSet = new Set(collectMatchedAvecNames(dayAvecNames, pro, panel))
+  const appointments = apptRows.filter((r) => matchedSet.has(r.professional_name?.trim() || '')).length
+  const doneMatched = doneRows.filter((r) => matchedSet.has(r.professional_name?.trim() || ''))
+  const attended = doneMatched.length
+  const revenue = doneMatched.reduce((sum, r) => sum + (Number(r.last_price) || 0), 0)
 
   return { appointments, attended, revenue }
 }
@@ -184,7 +186,6 @@ export async function getProDaySummary(
   const sql = getSql(validPanel)
   const pro = professionalName.trim()
   const dataSource = getProDataPlaneMode()
-  const proNorm = normalizeProName(pro)
 
   let appointments = 0
   let attended = 0
@@ -194,7 +195,7 @@ export async function getProDaySummary(
   // Prefer client_services for Hoje — day-scoped. P1 professionals on
   // salon_p1_daily are a 30-day rolling snapshot and must not override today.
   try {
-    const live = await dayStatsFromClientServices(sql, pro, day)
+    const live = await dayStatsFromClientServices(sql, pro, day, validPanel)
     appointments = live.appointments
     attended = live.attended
     revenue = live.revenue
@@ -217,7 +218,7 @@ export async function getProDaySummary(
       const list = Array.isArray(rows[0]?.professionals) ? rows[0]!.professionals : []
       const mine = (
         list as { name?: string; revenue?: number; attended?: number; appointments?: number }[]
-      ).find((p) => normalizeProName(p.name ?? '') === proNorm)
+      ).find((p) => avecNameBelongsToConnectedPro(p.name ?? '', pro, validPanel))
       if (mine) {
         revenue = Number(mine.revenue) || 0
         attended = Number(mine.attended) || 0

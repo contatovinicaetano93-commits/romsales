@@ -39,11 +39,9 @@ describe('Romsales pro-only product boundary', () => {
     expect(isAllowedInfrastructureApi('/api/lgpd/purge')).toBe(true)
   })
 
-  it('libera só o cron de estoque/relatório, não o resto da API de equipe', () => {
-    // Sync de estoque e relatório de diretoria também rodam no Romsales agora —
-    // só o cron, não o CRUD de estoque/painel (isso continua bloqueado abaixo).
-    expect(getInfrastructureApiAccess('/api/estoque/sync')).toBe('cron')
-    expect(getInfrastructureApiAccess('/api/director-report')).toBe('cron')
+  it('não libera cron de estoque/diretoria no pro-only', () => {
+    expect(getInfrastructureApiAccess('/api/estoque/sync')).toBeNull()
+    expect(getInfrastructureApiAccess('/api/director-report')).toBeNull()
     expect(isTeamApiPath('/api/estoque/produtos')).toBe(true)
     expect(isTeamApiPath('/api/estoque/kpis')).toBe(true)
   })

@@ -25,6 +25,7 @@
     { "id": "022_romsales_hardening", "file": "delta-romsales-hardening.sql", "panels": ["brasil", "iguatemi"] },
     { "id": "023_romsales_rate_limits", "file": "delta-romsales-rate-limits.sql", "panels": ["brasil", "iguatemi"] },
     { "id": "024_pro_professional_name_idx", "file": "delta-pro-professional-name-idx.sql", "panels": ["brasil", "iguatemi"] },
-    { "id": "025_client_dossier", "file": "delta-client-dossier.sql", "panels": ["brasil", "iguatemi"] }
+    { "id": "025_client_dossier", "file": "delta-client-dossier.sql", "panels": ["brasil", "iguatemi"] },
+    { "id": "026_pro_name_key", "file": "delta-pro-name-key.sql", "panels": ["brasil", "iguatemi"] }
   ]
 }

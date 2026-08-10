@@ -38,10 +38,6 @@ const CRON_INFRASTRUCTURE_API_PREFIXES = [
   '/api/avec/sync',
   '/api/lgpd/purge',
   '/api/admin/migrations',
-  // Só o job de sync e o relatório semanal — o resto de /api/estoque continua
-  // bloqueado como rota de equipe (gestão de estoque não é superfície pro).
-  '/api/estoque/sync',
-  '/api/director-report',
 ]
 
 const PUBLIC_PRO_API_PREFIXES = ['/api/pro/login', '/api/pro/register', '/api/pro/logout']

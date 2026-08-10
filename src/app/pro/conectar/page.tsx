@@ -332,15 +332,19 @@ export default function ProConectarPage() {
           </label>
 
           <label className="mt-3 block text-[0.65rem] uppercase tracking-[0.18em] text-muted">
-            Nome do assinante (igual na agenda)
+            Nome no portfólio (conferência ROM Central)
             <input
               className="pro-input mt-2"
               value={professionalName}
               onChange={(e) => setProfessionalName(e.target.value)}
-              placeholder="Seu nome exatamente como na Avec"
+              placeholder="Ex.: Romeu Felipe (como no relatório de diretoria)"
               autoComplete="off"
             />
           </label>
+          <p className="mt-1 text-xs text-muted">
+            Mesma conferência do ROM Central BR/IG: o nome precisa bater no portfólio da unidade
+            (acentos/case ok; primeiro nome só se for único).
+          </p>
 
           <label className="mt-3 block text-[0.65rem] uppercase tracking-[0.18em] text-muted">
             Token da API
