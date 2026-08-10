@@ -15,6 +15,8 @@ export interface ProClient {
   time?: string
   lastVisitAt?: string | null
   lastPrice?: number | null
+  preferredManicurist?: string | null
+  preferredHairstylist?: string | null
 }
 
 export interface ProHojeSummary {
@@ -78,11 +80,15 @@ export async function getProClients(
 
     // Um contato → linha do serviço mais recente deste pro (prioriza last_done_at).
     const prefs = (await sql`
-      select id, name, phone, service_name, last_done_at, last_price from (
+      select id, name, phone, service_name, last_done_at, last_price,
+             preferred_manicurist, preferred_hairstylist
+      from (
         select distinct on (c.id)
           c.id,
           c.name,
           c.phone,
+          c.preferred_manicurist,
+          c.preferred_hairstylist,
           cs.name as service_name,
           cs.last_done_at,
           cs.last_price,
@@ -103,6 +109,8 @@ export async function getProClients(
       service_name: string | null
       last_done_at: string | null
       last_price: number | null
+      preferred_manicurist: string | null
+      preferred_hairstylist: string | null
     }[]
     for (const c of prefs) {
       clients.push({
@@ -115,6 +123,8 @@ export async function getProClients(
           c.last_price != null && Number.isFinite(Number(c.last_price))
             ? Number(c.last_price)
             : null,
+        preferredManicurist: c.preferred_manicurist,
+        preferredHairstylist: c.preferred_hairstylist,
       })
     }
   } catch (e) {

@@ -29,6 +29,9 @@ export type AvecMapperKind =
   | 'stock_valuation_category'
   | 'stock_valuation_brand'
   | 'stock_valuation_category_pct'
+  | 'service_history'
+  | 'product_uses'
+  | 'anamnese'
   | 'raw'
 
 export interface AvecReportDef {
@@ -145,6 +148,27 @@ const STOCK: AvecReportDef[] = [
     schedule: 'daily',
   },
 ]
+
+/**
+ * Dossiê do cliente (pro) — full only.
+ * 0031 histórico de serviços; 0246 produtos usados em serviço (melhor que 0147,
+ * que exige profissional_id); 0115 anamnese (REST).
+ */
+const DOSSIER: AvecReportDef[] = [
+  { id: '0031', tier: 'A', name: 'Serviços realizados (dossiê)', mapper: 'service_history', schedule: 'daily' },
+  {
+    id: '0246',
+    tier: 'A',
+    name: 'Produtos utilizados em serviços',
+    mapper: 'product_uses',
+    schedule: 'daily',
+  },
+  { id: '0115', tier: 'B', name: 'Anamnese por cliente', mapper: 'anamnese', schedule: 'daily' },
+]
+
+export function getDossierReports(): AvecReportDef[] {
+  return DOSSIER
+}
 
 export function getStockReports(): AvecReportDef[] {
   return STOCK

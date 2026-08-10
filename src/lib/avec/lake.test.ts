@@ -58,9 +58,15 @@ describe('isAvecLakeReportSupported', () => {
     expect(isAvecLakeReportSupported('revenue')).toBe(true)
   })
 
-  it('não mapeia estoque/P2', () => {
+  it('mapeia dossiê 0031/0246', () => {
+    expect(isAvecLakeReportSupported('0031')).toBe(true)
+    expect(isAvecLakeReportSupported('0246')).toBe(true)
+  })
+
+  it('não mapeia estoque/P2/anamnese', () => {
     expect(isAvecLakeReportSupported('0149')).toBe(false)
     expect(isAvecLakeReportSupported('0056')).toBe(false)
+    expect(isAvecLakeReportSupported('0115')).toBe(false)
   })
 })
 

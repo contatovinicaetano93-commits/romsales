@@ -14,18 +14,24 @@ Avec UNIDADE:
   ou
   Lake  AVEC_LAKE_*     → Athena (avec_lake_db / workgroup avec_daas)
   → cron /api/avec/sync (+ webhook /api/webhooks/avec)
-  → salon_p1_daily / contacts (Neon do deploy Romsales)
-  → src/lib/pro/data-plane.ts (unit-sync)
-  → Hoje / Assistente / Clientes
+  → contacts / client_services / client_visits / client_product_uses
+  → salon_p1_daily (KPIs)
+  → src/lib/pro/data-plane.ts + dossier.ts (unit-sync)
+  → Hoje / Assistente / Clientes (/api/pro/clientes/[id])
        filtrados por professional_name do perfil pro
 ```
 
+Dossiê do cliente (última visita, prefs, produtos, anamnese): `docs/CLIENT_DOSSIER_SYNC.md`.
+
 Lake (Athena) mapeia: clientes `0004`, reservas `0051`, cancelamentos `0052`, comandas
-`0002`, faturamento por profissional `0021`, top serviços `0032`, revenue `0036`/`0020`.
-Modo `auto`/`lake` usa Athena nos mapeados e cai no REST (se `AVEC_API_TOKEN`) nos demais;
-sem REST, P2/P3/estoque viram **warning** (não derrubam o cron).
+`0002`/`0031` (serviços), produtos em comanda `0246`, faturamento `0021`, top serviços `0032`,
+revenue `0036`/`0020`. Modo `auto`/`lake` usa Athena nos mapeados e cai no REST nos demais;
+sem REST, P2/P3/estoque/anamnese `0115` viram **warning** (não derrubam o cron).
 No Lake, cada relatório = **1** query Athena (sem loop OFFSET); o full **pula** o catálogo
 `0004` (contatos vêm de 0051/0002) para caber no timeout de 300s da Vercel.
+
+Sync full em camadas: (1) fast dia → `client_services` + `client_visits`; (2) dossiê
+`0031`/`0246` 90d + `0115` REST; (3) soft KPIs P1/P2/P3.
 
 Hoje lê `client_services` do sync **do dia** (0051/0002). `salon_p1_daily` (0021, janela ~30d)
 só entra se a leitura do dia falhar — não sobrescreve KPIs diários.

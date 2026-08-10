@@ -19,10 +19,11 @@ Romsales (Vercel) ──► Neon próprio
    ├─ Identidade pro: romsales_pro_users / romsales_pro_profiles
    ├─ UI/API pro: /pro/* + /api/pro/* + /api/me/*
    │
-   └─ Dados de agenda/carteira (hoje):
+   └─ Dados de agenda/carteira + dossiê do cliente:
         sync Avec da UNIDADE (Lake ou REST + cron /api/avec/sync)
-        → client_services / contacts (KPIs do dia no Hoje)
+        → client_services / client_visits / client_product_uses / contacts
         → filtrados por professional_name
+        → detalhe: GET /api/pro/clientes/[id] (ver docs/CLIENT_DOSSIER_SYNC.md)
 ```
 
 Gaps estruturais conhecidos (detalhe em `ARCHITECTURE.md`):

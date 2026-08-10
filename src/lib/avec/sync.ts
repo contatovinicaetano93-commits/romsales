@@ -42,6 +42,7 @@ import { todayIso, toSalonDateIso } from '@/lib/salon/format'
 import { syncP1Kpis } from '@/lib/avec/sync-p1'
 import { syncP2Kpis } from '@/lib/avec/sync-p2'
 import { syncP3Kpis } from '@/lib/avec/sync-p3'
+import { syncClientDossier, upsertClientVisit } from '@/lib/avec/sync-dossier'
 import type { RomPanelId } from '@/lib/brand'
 
 export type AvecSyncMode = 'fast' | 'full'
@@ -63,6 +64,10 @@ export interface AvecSyncStats {
   p1_rows?: number
   p2_rows?: number
   p3_rows?: number
+  visits_upserted?: number
+  product_uses_upserted?: number
+  anamnese_upserted?: number
+  prefs_recomputed?: number
 }
 
 export interface AvecSyncRun {
@@ -307,6 +312,25 @@ async function syncAttendances(stats: AvecSyncStats, mode: AvecSyncMode, syncRun
           professionalName: att.professional,
           lastPrice: att.price,
         })
+        if (att.attendedAt) {
+          try {
+            await upsertClientVisit({
+              contactId: contact.id,
+              avecClientId: att.avecClientId,
+              avecComandaId: null,
+              serviceName: att.serviceName,
+              professional: att.professional,
+              price: att.price,
+              doneAt: att.attendedAt,
+              source: mode === 'fast' ? 'avec_0002_fast' : 'avec_0002',
+            })
+            stats.visits_upserted = (stats.visits_upserted ?? 0) + 1
+          } catch (visitErr) {
+            stats.warnings.push(
+              `visita 0002: ${visitErr instanceof Error ? visitErr.message : String(visitErr)}`,
+            )
+          }
+        }
         if (att.professional && isNailService(att.serviceName)) {
           await setPreferredManicurist(contact.id, att.professional)
         } else if (att.professional && isHairService(att.serviceName)) {
@@ -474,6 +498,12 @@ async function runAvecSyncUnlocked(mode: AvecSyncMode): Promise<AvecSyncRun> {
     await syncRevenue(stats, syncRunId)
     await syncCancellations(stats, mode, syncRunId)
     if (mode === 'full') {
+      // Dossiê antes dos KPIs — prioridade pro (história do cliente na cadeira).
+      try {
+        await syncClientDossier(stats, syncRunId)
+      } catch (e) {
+        stats.errors.push(`Dossiê: ${e instanceof Error ? e.message : String(e)}`)
+      }
       for (const [label, fn] of [
         ['P1', () => syncP1Kpis(stats, syncRunId)],
         ['P2', () => syncP2Kpis(stats, syncRunId)],

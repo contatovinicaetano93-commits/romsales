@@ -51,6 +51,9 @@ const LAKE_SUPPORTED_REPORTS = new Set([
   '0052',
   '0021',
   '0032',
+  // Dossiê pro — histórico de serviços + produtos em comanda
+  '0031',
+  '0246',
   'revenue',
   '0036',
   '0020',
@@ -359,8 +362,9 @@ LIMIT ${limit}
 `.trim()
   }
 
-  if (reportId === '0002') {
-    if (!bounds) throw new Error('Relatório 0002 (comandas) exige inicio/fim')
+  // 0002 (fast/hoje) e 0031 (dossiê — mesma base de itens de serviço)
+  if (reportId === '0002' || reportId === '0031') {
+    if (!bounds) throw new Error(`Relatório ${reportId} (comandas/serviços) exige inicio/fim`)
     return `
 SELECT
   CAST(c.salao_cliente_id AS varchar) AS cliente_id,
@@ -371,7 +375,8 @@ SELECT
   '12:00' AS hora,
   p.nome AS profissional,
   ci.valor,
-  c.status
+  c.status,
+  CAST(c.id AS varchar) AS comanda_id
 FROM comanda_itens ci
 JOIN comandas c ON c.id = ci.comanda_id
 LEFT JOIN salao_cliente cl ON cl.id = c.salao_cliente_id
@@ -381,6 +386,39 @@ WHERE CAST(c.salao_id AS varchar) = ${salaoLit}
   AND c.data BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
   AND c.status = 'FINALIZADA'
   AND ci.tipo = 'salao_servicos'
+ORDER BY c.data, ci.id
+OFFSET ${offset}
+LIMIT ${limit}
+`.trim()
+  }
+
+  // 0246 — produtos na comanda (uso/venda). tipo ≠ serviço.
+  if (reportId === '0246') {
+    if (!bounds) throw new Error('Relatório 0246 (produtos em comanda) exige inicio/fim')
+    return `
+SELECT
+  CAST(c.salao_cliente_id AS varchar) AS cliente_id,
+  cl.nome AS cliente_nome,
+  cl.celular,
+  ci.item AS produto,
+  ci.tipo,
+  date_format(c.data, '%d/%m/%Y') AS data,
+  '12:00' AS hora,
+  p.nome AS profissional,
+  ci.valor,
+  CAST(ci.quantidade AS varchar) AS quantidade,
+  CAST(c.id AS varchar) AS comanda_id
+FROM comanda_itens ci
+JOIN comandas c ON c.id = ci.comanda_id
+LEFT JOIN salao_cliente cl ON cl.id = c.salao_cliente_id
+LEFT JOIN profissionais p
+  ON p.id = ci.profissional_id AND CAST(p.salao_id AS varchar) = CAST(c.salao_id AS varchar)
+WHERE CAST(c.salao_id AS varchar) = ${salaoLit}
+  AND c.data BETWEEN DATE ${sqlString(bounds.inicio)} AND DATE ${sqlString(bounds.fim)}
+  AND c.status = 'FINALIZADA'
+  AND ci.tipo IS NOT NULL
+  AND ci.tipo <> 'salao_servicos'
+  AND ci.item IS NOT NULL
 ORDER BY c.data, ci.id
 OFFSET ${offset}
 LIMIT ${limit}
