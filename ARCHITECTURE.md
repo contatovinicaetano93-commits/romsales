@@ -61,6 +61,9 @@ synca aquela unidade.
 4. **Dual auth no código** — `rom_session` (equipe) ainda existe, mas APIs de equipe retornam 404.
 5. **Ações** — página placeholder; filtros de clientes são shells.
 6. **Deploy** — sem `AVEC_*` o data-plane fica correto e vazio.
+7. **Roster Iguatemi vazio** — Conectar IG bloqueado até preencher `professionals.iguatemi.ts`.
+8. **UI dossiê / Assistente** — API pronta; tela de detalhe e contexto IA ainda não consomem o dossiê.
+9. **Neon quota 402** — ops: upgrade ou banco novo (bloqueia login/sync).
 
 ## Fechado (ondas paralelas)
 
