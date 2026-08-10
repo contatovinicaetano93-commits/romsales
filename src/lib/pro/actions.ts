@@ -3,7 +3,7 @@ import { enrichServices, computeRecommendations, type Recommendation } from '@/l
 import type { ClientService, ScheduledServiceRow } from '@/lib/services'
 import { isValidRomPanelId, type RomPanelId } from '@/lib/brand'
 import { Observability } from '@/lib/observability'
-import { normalizeProName } from '@/lib/pro/data-plane'
+import { collectMatchedAvecNames } from '@/lib/pro/confer-professional'
 
 export interface ProAction extends Recommendation {
   clientName: string
@@ -30,7 +30,6 @@ export async function getProActions(professionalName: string, panel?: string): P
   const validPanel: RomPanelId | undefined = isValidRomPanelId(panel) ? panel : undefined
   const sql = getSql(validPanel)
   const pro = professionalName.trim()
-  const proNorm = normalizeProName(pro)
 
   try {
     const nameRows = (await sql`
@@ -39,9 +38,11 @@ export async function getProActions(professionalName: string, panel?: string): P
       where active = true
         and professional_name is not null
     `) as { professional_name: string | null }[]
-    const matchedNames = nameRows
-      .map((r) => r.professional_name?.trim() || '')
-      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    const matchedNames = collectMatchedAvecNames(
+      nameRows.map((r) => r.professional_name?.trim() || ''),
+      pro,
+      validPanel,
+    )
     if (matchedNames.length === 0) return []
 
     const rows = (await sql`

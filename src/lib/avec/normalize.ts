@@ -915,3 +915,143 @@ export function guessServiceCategory(name: string): 'corte' | 'tratamento' | 'co
   if (n.includes('hidrat') || n.includes('nutri') || n.includes('trat') || n.includes('escova')) return 'tratamento'
   return 'outro'
 }
+
+/** Classifica produto usado no serviço (tintura, shampoo, creme…). */
+export function guessProductKind(name: string | null | undefined): string | null {
+  if (!name) return null
+  const n = name.toLowerCase()
+  if (n.includes('tintura') || n.includes('color') || n.includes('ox') || n.includes('descolo')) return 'tintura'
+  if (n.includes('shampoo') || n.includes('xampu')) return 'shampoo'
+  if (n.includes('condic') || n.includes('condicionador')) return 'condicionador'
+  if (n.includes('creme') || n.includes('máscara') || n.includes('mascara') || n.includes('mask')) return 'creme'
+  if (n.includes('óleo') || n.includes('oleo') || n.includes('oil') || n.includes('serum') || n.includes('sérum')) {
+    return 'finalizador'
+  }
+  if (n.includes('esmalte') || n.includes('base') || n.includes('top coat')) return 'esmalte'
+  if (n.includes('querosene') || n.includes('removedor') || n.includes('acetona')) return 'removedor'
+  return 'outro'
+}
+
+export interface NormalizedClientVisit {
+  avecClientId: string | null
+  clientName: string | null
+  phone: string | null
+  serviceName: string
+  professional: string | null
+  price: number | null
+  doneAt: string
+  avecComandaId: string | null
+}
+
+/** 0031 / linhas de serviço em comanda — histórico de visitas. */
+export function normalizeServiceHistoryRow(row: Record<string, unknown>): NormalizedClientVisit | null {
+  const att = normalizeAttendanceRow(row)
+  if (!att?.serviceName || !att.attendedAt) return null
+  const avecComandaId = pick(row, [
+    'comanda_id',
+    'id_comanda',
+    'codigo_comanda',
+    'comanda',
+    'numero_comanda',
+  ])
+  return {
+    avecClientId: att.avecClientId,
+    clientName: att.clientName,
+    phone: att.phone,
+    serviceName: att.serviceName,
+    professional: att.professional,
+    price: att.price,
+    doneAt: att.attendedAt,
+    avecComandaId,
+  }
+}
+
+export interface NormalizedProductUse {
+  avecClientId: string | null
+  clientName: string | null
+  phone: string | null
+  productName: string
+  brand: string | null
+  productKind: string | null
+  quantity: number | null
+  professional: string | null
+  usedAt: string
+  avecComandaId: string | null
+  kind: 'consumo' | 'venda' | 'outro'
+}
+
+/** 0246 / Lake produtos em comanda — uso ou venda ligada ao cliente. */
+export function normalizeProductUseRow(row: Record<string, unknown>): NormalizedProductUse | null {
+  const avecClientId = pick(row, ['cliente_id', 'client_id', 'id_cliente', 'codigo_cliente', 'salao_cliente_id'])
+  const clientName = pick(row, ['cliente', 'nome', 'nome_cliente', 'cliente_nome'])
+  const phone = normalizePhone(pick(row, ['celular', 'telefone', 'phone']))
+  const productName = pick(row, [
+    'produto',
+    'nome_produto',
+    'item',
+    'descricao',
+    'servico',
+    'serviço',
+    'name',
+  ])
+  if (!productName) return null
+
+  const datePart = pick(row, ['data', 'data_uso', 'data_comanda', 'dia', 'date', 'used_at'])
+  const timePart = pick(row, ['hora', 'horario', 'horário'])
+  const usedAt = parseAvecDateTime(datePart, timePart)
+  if (!usedAt) return null
+
+  const brand = pick(row, ['marca', 'brand', 'fabricante'])
+  const professional = pick(row, ['profissional', 'profissional_nome', 'nome_profissional'])
+  const avecComandaId = pick(row, [
+    'comanda_id',
+    'id_comanda',
+    'codigo_comanda',
+    'comanda',
+    'numero_comanda',
+  ])
+  const qtyRaw = pickRaw(row, ['quantidade', 'qtd', 'qty', 'quantity'])
+  let quantity: number | null = null
+  if (typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)) quantity = qtyRaw
+  else if (typeof qtyRaw === 'string') {
+    const n = Number(qtyRaw.replace(',', '.'))
+    if (Number.isFinite(n)) quantity = n
+  }
+
+  const tipo = (pick(row, ['tipo', 'tipo_item', 'kind', 'movimento']) ?? '').toLowerCase()
+  let kind: NormalizedProductUse['kind'] = 'consumo'
+  if (tipo.includes('venda') || tipo.includes('sale')) kind = 'venda'
+  else if (tipo && !tipo.includes('consumo') && !tipo.includes('produto') && !tipo.includes('salao')) {
+    kind = 'outro'
+  }
+
+  if (!avecClientId && !clientName && !phone) return null
+
+  return {
+    avecClientId,
+    clientName,
+    phone,
+    productName,
+    brand,
+    productKind: guessProductKind(productName) ?? guessProductKind(brand),
+    quantity,
+    professional,
+    usedAt,
+    avecComandaId,
+    kind,
+  }
+}
+
+export interface NormalizedAnamneseRow {
+  avecClientId: string | null
+  clientName: string | null
+  fields: Record<string, unknown>
+}
+
+/** 0115 — ficha de anamnese (campos variam por unidade). */
+export function normalizeAnamneseRow(row: Record<string, unknown>): NormalizedAnamneseRow | null {
+  const avecClientId = pick(row, ['cliente_id', 'client_id', 'id_cliente', 'codigo_cliente', 'id'])
+  const clientName = pick(row, ['cliente', 'nome', 'nome_cliente', 'cliente_nome'])
+  if (!avecClientId && !clientName) return null
+  return { avecClientId, clientName, fields: { ...row } }
+}

@@ -14,24 +14,33 @@ Avec UNIDADE:
   ou
   Lake  AVEC_LAKE_*     → Athena (avec_lake_db / workgroup avec_daas)
   → cron /api/avec/sync (+ webhook /api/webhooks/avec)
-  → salon_p1_daily / contacts (Neon do deploy Romsales)
-  → src/lib/pro/data-plane.ts (unit-sync)
-  → Hoje / Assistente / Clientes
+  → contacts / client_services / client_visits / client_product_uses
+  → salon_p1_daily (KPIs)
+  → src/lib/pro/data-plane.ts + dossier.ts (unit-sync)
+  → Hoje / Assistente / Clientes (/api/pro/clientes/[id])
        filtrados por professional_name do perfil pro
 ```
 
+Dossiê do cliente (última visita, prefs, produtos, anamnese): `docs/CLIENT_DOSSIER_SYNC.md`.
+
 Lake (Athena) mapeia: clientes `0004`, reservas `0051`, cancelamentos `0052`, comandas
-`0002`, faturamento por profissional `0021`, top serviços `0032`, revenue `0036`/`0020`.
-Modo `auto`/`lake` usa Athena nos mapeados e cai no REST (se `AVEC_API_TOKEN`) nos demais;
-sem REST, P2/P3/estoque viram **warning** (não derrubam o cron).
+`0002`/`0031` (serviços), produtos em comanda `0246`, faturamento `0021`, top serviços `0032`,
+revenue `0036`/`0020`. Modo `auto`/`lake` usa Athena nos mapeados e cai no REST nos demais;
+sem REST, P2/P3/estoque/anamnese `0115` viram **warning** (não derrubam o cron).
 No Lake, cada relatório = **1** query Athena (sem loop OFFSET); o full **pula** o catálogo
 `0004` (contatos vêm de 0051/0002) para caber no timeout de 300s da Vercel.
+
+Sync full em camadas: (1) fast dia → `client_services` + `client_visits`; (2) dossiê
+`0031`/`0246` 90d + `0115` REST; (3) soft KPIs P1/P2/P3.
 
 Hoje lê `client_services` do sync **do dia** (0051/0002). `salon_p1_daily` (0021, janela ~30d)
 só entra se a leitura do dia falhar — não sobrescreve KPIs diários.
 
-O Conectar valida Lake com ping Athena e grava só fingerprint (`lake:AKIA…` / `lake:unit`) —
-nunca o secret AWS. O token pessoal **não** alimenta o read-model (`dataPlane: unit-sync`).
+O Conectar **confere** o nome no portfólio ROM Central (`matchDirectorProfessional` +
+roster BR/IG), grava o canônico + `professional_name_key`, valida Lake com ping Athena e
+persiste só fingerprint (`lake:AKIA…` / `lake:unit`) — nunca o secret AWS. O token pessoal
+**não** alimenta o read-model (`dataPlane: unit-sync`). Deploy com `ROM_PANEL` fixo só
+synca aquela unidade.
 
 ## Superfície do produto
 
@@ -46,12 +55,14 @@ nunca o secret AWS. O token pessoal **não** alimenta o read-model (`dataPlane: 
 
 ## Gaps conhecidos
 
-1. **Fork com arquivos de equipe no tree** — ainda compilam; boundary no middleware (não remoção física).
+1. **Fork com arquivos de equipe no tree** — ainda compilam; boundary no middleware (não remoção física). Sync Avec no pro-only aceita só `CRON_SECRET`.
 2. **Avec pessoal ≠ pipeline de dados** — token no Conectar valida/salva criptografado; Hoje usa sync da unidade. `decryptSecret` ainda sem consumer de sync.
 3. **WhatsApp Cloud** — só `credentials-saved`; `linked`/`messagingReady` ficam false até haver adapter.
 4. **Dual auth no código** — `rom_session` (equipe) ainda existe, mas APIs de equipe retornam 404.
 5. **Ações** — página placeholder; filtros de clientes são shells.
 6. **Deploy** — sem `AVEC_*` o data-plane fica correto e vazio.
+7. **Roster Iguatemi** — portfólio vazio; Conectar cai no match-pro contra nomes do sync até preencher `professionals.iguatemi.ts`.
+8. **Neon quota 402** — ops: upgrade ou banco novo; app devolve 503 com mensagem clara no login.
 
 ## Fechado (ondas paralelas)
 

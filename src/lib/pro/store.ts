@@ -6,7 +6,12 @@ import { hashPassword, verifyPassword } from '@/lib/pro/password'
 import { verifyProAvecToken } from '@/lib/pro/avec-verify'
 import { lakeTokenForStorage } from '@/lib/avec/lake'
 import { encryptSecret } from '@/lib/pro/secrets'
-import { normalizeProName } from '@/lib/pro/data-plane'
+import {
+  conferAgainstNames,
+  conferProfessional,
+  normalizeProKey,
+  rosterForPanel,
+} from '@/lib/pro/confer-professional'
 
 export { buildConnectorStatus } from '@/lib/pro/connectors'
 
@@ -84,10 +89,16 @@ export async function ensureProTables(): Promise<void> {
       await sql`alter table romsales_pro_profiles add column if not exists wa_display_number text`
       await sql`alter table romsales_pro_profiles add column if not exists ai_used_today integer not null default 0`
       await sql`alter table romsales_pro_profiles add column if not exists ai_quota_day date`
+      await sql`alter table romsales_pro_profiles add column if not exists professional_name_key text`
       await sql`
         create unique index if not exists romsales_pro_profiles_panel_name_uniq
           on romsales_pro_profiles (panel, lower(professional_name))
           where professional_name is not null
+      `
+      await sql`
+        create unique index if not exists romsales_pro_profiles_panel_name_key_uniq
+          on romsales_pro_profiles (panel, professional_name_key)
+          where professional_name_key is not null
       `
     })().catch((e) => {
       ensurePromise = null
@@ -357,50 +368,99 @@ export async function connectAgenda(
     source?: string
     apiToken?: string
     unitId?: string
+    /** Painel do perfil — preservado em deploy multi-unidade. */
+    panel?: string
   },
 ) {
   await ensureProTables()
   const sql = getSql()
-  const name = input.professionalName.trim()
-  if (!name) throw new Error('Informe o nome do profissional na agenda')
+  const rawName = input.professionalName.trim()
+  if (!rawName) throw new Error('Informe o nome do profissional na agenda')
   const source = (input.source ?? 'avec').trim().toLowerCase() || 'avec'
   if (source !== 'avec') {
     throw new Error('Por enquanto só Avec está disponível (Trinks em breve)')
   }
+
+  // Painel: perfil do usuário > input > ROM_PANEL do deploy (não sobrescreve BR↔IG à toa).
+  const profilePanelRows = (await sql`
+    select panel from romsales_pro_profiles where user_id = ${userId} limit 1
+  `) as { panel: string | null }[]
+  const panel = isValidRomPanelId(input.panel)
+    ? input.panel
+    : isValidRomPanelId(profilePanelRows[0]?.panel)
+      ? profilePanelRows[0]!.panel
+      : getRomPanelId()
+
+  // Conferência ROM Central (roster). Se roster vazio (ex.: Iguatemi),
+  // mesmo match-pro contra nomes já sincronizados da unidade.
+  const roster = rosterForPanel(panel)
+  let conferred = conferProfessional(rawName, panel)
+  if (!conferred && roster.length === 0) {
+    const unitSql = getSql(isValidRomPanelId(panel) ? panel : undefined)
+    const syncNames = (await unitSql`
+      select distinct professional_name as name
+      from client_services
+      where active = true
+        and professional_name is not null
+        and trim(professional_name) <> ''
+    `) as { name: string }[]
+    const names = syncNames.map((r) => r.name)
+    if (names.length === 0) {
+      throw new Error(
+        `Portfólio ${panel} vazio e sync ainda sem profissionais — rode o cron Avec (full) ou cadastre o roster da unidade`,
+      )
+    }
+    conferred = conferAgainstNames(rawName, names)
+    if (!conferred) {
+      throw new Error(
+        'Nome não conferido nos profissionais já sincronizados desta unidade. Use o nome como na Avec (completo se houver homônimo).',
+      )
+    }
+  } else if (!conferred) {
+    throw new Error(
+      'Nome não conferido no portfólio desta unidade (use o nome como no ROM Central — ex.: Romeu Felipe). Se for só o primeiro nome e houver homônimos, digite o nome completo.',
+    )
+  }
+  const name = conferred.name
+  const nameKey = normalizeProKey(name)
+
   const token = (input.apiToken ?? '').trim()
   await verifyProAvecToken(token)
   // Lake: nunca persiste secret AWS — só marcador/fingerprint criptografado.
   const toStore = lakeTokenForStorage(token) ?? token
   const encryptedToken = encryptSecret(toStore)
   const unitId = (input.unitId ?? '').trim() || null
-  const panel = getRomPanelId()
 
-  // Impede dois profissionais da mesma unidade reivindicarem o mesmo nome
-  // (case/acentos — alinhado ao match do Hoje/Actions).
-  const nameNorm = normalizeProName(name)
   const peers = (await sql`
-    select user_id, professional_name
+    select user_id, professional_name, professional_name_key
     from romsales_pro_profiles
     where panel = ${panel}
       and professional_name is not null
       and user_id <> ${userId}
-  `) as { user_id: string; professional_name: string | null }[]
-  if (peers.some((p) => normalizeProName(p.professional_name ?? '') === nameNorm)) {
-    throw new Error('Este nome de agenda já está vinculado a outra conta nesta unidade')
+  `) as { user_id: string; professional_name: string | null; professional_name_key: string | null }[]
+  if (
+    peers.some(
+      (p) =>
+        (p.professional_name_key && p.professional_name_key === nameKey) ||
+        normalizeProKey(p.professional_name ?? '') === nameKey,
+    )
+  ) {
+    throw new Error('Este profissional do portfólio já está vinculado a outra conta nesta unidade')
   }
 
   try {
     await sql`
       insert into romsales_pro_profiles (
-        user_id, professional_name, panel, connected_at,
+        user_id, professional_name, professional_name_key, panel, connected_at,
         agenda_source, avec_api_token, avec_unit_id, updated_at
       )
       values (
-        ${userId}, ${name}, ${panel}, now(),
+        ${userId}, ${name}, ${nameKey}, ${panel}, now(),
         ${source}, ${encryptedToken}, ${unitId}, now()
       )
       on conflict (user_id) do update set
         professional_name = excluded.professional_name,
+        professional_name_key = excluded.professional_name_key,
         panel = excluded.panel,
         connected_at = now(),
         agenda_source = excluded.agenda_source,
@@ -410,8 +470,12 @@ export async function connectAgenda(
     `
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes('romsales_pro_profiles_panel_name_uniq') || msg.includes('unique')) {
-      throw new Error('Este nome de agenda já está vinculado a outra conta nesta unidade')
+    if (
+      msg.includes('romsales_pro_profiles_panel_name_uniq') ||
+      msg.includes('romsales_pro_profiles_panel_name_key_uniq') ||
+      msg.includes('unique')
+    ) {
+      throw new Error('Este profissional do portfólio já está vinculado a outra conta nesta unidade')
     }
     throw e
   }
@@ -424,6 +488,7 @@ export async function disconnectAgenda(userId: string) {
     update romsales_pro_profiles
     set
       professional_name = null,
+      professional_name_key = null,
       connected_at = null,
       agenda_source = null,
       avec_api_token = null,
