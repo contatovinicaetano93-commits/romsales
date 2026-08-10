@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     const { id } = await ctx.params
     if (!id?.trim()) return err('Cliente inválido', 400)
 
-    const dossier = await getProClientDossier(id.trim(), user.panel)
+    const dossier = await getProClientDossier(id.trim(), user.professional_name, user.panel)
     if (!dossier) return err('Cliente não encontrado', 404)
 
     return ok({

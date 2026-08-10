@@ -1,6 +1,7 @@
 import { getSql } from '@/lib/db'
 import { isValidRomPanelId } from '@/lib/brand'
 import { Observability } from '@/lib/observability'
+import { normalizeProName } from '@/lib/pro/data-plane'
 
 export interface ProClientVisit {
   serviceName: string
@@ -34,19 +35,42 @@ export interface ProClientDossier {
 /**
  * Dossiê completo para a cadeira — visitas, produtos, prefs, anamnese.
  * Fonte: unit-sync (client_visits / client_product_uses / contact_clinical).
+ * Escopo: só contatos com client_services do profissional logado (igual à lista).
  */
 export async function getProClientDossier(
   contactId: string,
+  professionalName: string,
   panel?: string,
 ): Promise<ProClientDossier | null> {
   const sql = getSql(isValidRomPanelId(panel) ? panel : undefined)
+  const pro = professionalName.trim()
+  if (!pro) return null
+  const proNorm = normalizeProName(pro)
 
   try {
+    const nameRows = (await sql`
+      select distinct professional_name
+      from client_services
+      where active = true
+        and professional_name is not null
+    `) as { professional_name: string | null }[]
+    const matchedNames = nameRows
+      .map((r) => r.professional_name?.trim() || '')
+      .filter((n) => n.length > 0 && normalizeProName(n) === proNorm)
+    if (matchedNames.length === 0) return null
+
     const contacts = (await sql`
-      select id, name, phone, notes, preferred_manicurist, preferred_hairstylist
-      from contacts
-      where id = ${contactId}::uuid
-        and anonymized_at is null
+      select c.id, c.name, c.phone, c.notes, c.preferred_manicurist, c.preferred_hairstylist
+      from contacts c
+      where c.id = ${contactId}::uuid
+        and c.anonymized_at is null
+        and exists (
+          select 1
+          from client_services cs
+          where cs.contact_id = c.id
+            and cs.active = true
+            and cs.professional_name = any(${matchedNames})
+        )
       limit 1
     `) as {
       id: string

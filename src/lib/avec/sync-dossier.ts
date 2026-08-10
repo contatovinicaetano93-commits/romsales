@@ -22,11 +22,7 @@ import {
 } from '@/lib/avec/normalize'
 import { getDossierReports, resolveReportId } from '@/lib/avec/registry'
 import { saveReportSnapshot } from '@/lib/avec/snapshots'
-import {
-  upsertContact,
-  setPreferredManicurist,
-  setPreferredHairstylist,
-} from '@/lib/contacts'
+import { upsertContact } from '@/lib/contacts'
 
 export type DossierSyncStats = {
   snapshots_saved: number
@@ -82,8 +78,9 @@ export function visitDedupeKey(
   doneAt: string,
   serviceName: string,
   professional: string | null,
+  comandaId: string | null,
 ) {
-  return `${contactId}|${doneAt}|${serviceName.trim().toLowerCase()}|${(professional ?? '').trim().toLowerCase()}`
+  return `${contactId}|${doneAt}|${serviceName.trim().toLowerCase()}|${(professional ?? '').trim().toLowerCase()}|${comandaId ?? ''}`
 }
 
 function productDedupeKey(
@@ -114,6 +111,7 @@ export async function upsertClientVisit(input: {
     input.doneAt,
     input.serviceName,
     input.professional,
+    input.avecComandaId,
   )
   await sql`
     insert into client_visits (
@@ -355,7 +353,7 @@ async function syncAnamnese(stats: DossierSyncStats, syncRunId?: string) {
 
 /**
  * Preferidos = profissional mais frequente nos últimos 180d por categoria unha/cabelo.
- * Só preenche se ainda vazio (não sobrescreve ajuste manual futuro).
+ * Sobrescreve prefs derivadas do sync/agendamento; respeita limpeza manual ('').
  */
 async function recomputePreferences(stats: DossierSyncStats) {
   const sql = getSql()
@@ -403,12 +401,23 @@ async function recomputePreferences(stats: DossierSyncStats) {
     for (const [contactId, bucket] of byContact) {
       const nail = top(bucket.nail)
       const hair = top(bucket.hair)
+      // '' = limpeza manual — não re-derivar (mesmo sentinel do GET /api/contacts).
       if (nail) {
-        await setPreferredManicurist(contactId, nail)
+        await sql`
+          update contacts
+          set preferred_manicurist = ${nail}
+          where id = ${contactId}::uuid
+            and preferred_manicurist is distinct from ''
+        `
         updated++
       }
       if (hair) {
-        await setPreferredHairstylist(contactId, hair)
+        await sql`
+          update contacts
+          set preferred_hairstylist = ${hair}
+          where id = ${contactId}::uuid
+            and preferred_hairstylist is distinct from ''
+        `
         updated++
       }
     }
